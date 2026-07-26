@@ -451,6 +451,25 @@ rail:{rows:[["Gate","T7 via E, B"],["Block time","1h02"],["Fuel remaining","~2 7
 const state={checks:new Set(),cur:0,tab:"flow"};
 const GY=118,PROFY=[GY,GY,GY,GY,GY,GY,106,62,30,62,92,GY,GY];
 const $=s=>document.querySelector(s);
+const SKEY="a32nx-companion.v1";
+
+/* Storage can throw in private mode or with cookies blocked — a broken save
+   must never take the page down with it. */
+function save(){
+  try{localStorage.setItem(SKEY,JSON.stringify({checks:[...state.checks],cur:state.cur,tab:state.tab}))}
+  catch(e){/* progress stays in-memory for this session */}
+}
+function load(){
+  let raw;
+  try{raw=localStorage.getItem(SKEY)}catch(e){return}
+  if(!raw)return;
+  try{
+    const s=JSON.parse(raw);
+    if(Array.isArray(s.checks))state.checks=new Set(s.checks);
+    if(Number.isInteger(s.cur)&&s.cur>=0&&s.cur<D.length)state.cur=s.cur;
+    if(s.tab==="cl"&&D[state.cur].cl)state.tab="cl";
+  }catch(e){/* corrupt payload — start a fresh flight */}
+}
 
 function key(pi,kind,a,b){return pi+"-"+kind+"-"+a+(b!==undefined?"-"+b:"")}
 function phaseTotals(pi){
@@ -531,11 +550,17 @@ function renderPhase(){
 
 function toggle(k){state.checks.has(k)?state.checks.delete(k):state.checks.add(k);render()}
 function globalProg(){let c=0,t=0;D.forEach((_,i)=>{const[a,b]=phaseTotals(i);c+=a;t+=b});return t?Math.round(100*c/t):0}
-function render(){drawProfile();renderPhase();$("#progPct").textContent=globalProg()+"%"}
+function render(){drawProfile();renderPhase();$("#progPct").textContent=globalProg()+"%";save()}
 
 $("#prevBtn").addEventListener("click",()=>{if(state.cur>0){state.cur--;state.tab="flow";render();window.scrollTo({top:0})}});
 $("#nextBtn").addEventListener("click",()=>{if(state.cur<D.length-1){state.cur++;state.tab="flow";render();window.scrollTo({top:0})}});
-$("#resetBtn").addEventListener("click",()=>{state.checks.clear();state.cur=0;state.tab="flow";render();window.scrollTo({top:0})});
+$("#resetBtn").addEventListener("click",()=>{
+  if(state.checks.size&&!confirm("Reset all progress and start a new flight?"))return;
+  state.checks.clear();state.cur=0;state.tab="flow";
+  try{localStorage.removeItem(SKEY)}catch(e){}
+  render();window.scrollTo({top:0});
+});
+load();
 render();
 </script>
 </body>
