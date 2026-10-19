@@ -40,9 +40,18 @@ class Hub:
     async def refresh_ofp(self) -> None:
         # Serialized so a burst of refresh clicks costs one SimBrief request at a time.
         async with self._refreshing:
+            # OSError covers cache writes on a read-only or full disk; ValueError covers a
+            # non-UTF-8 SimBrief body.
             try:
                 ofp = await self.source.refresh()
-            except (SimbriefError, OfpError, aiohttp.ClientError, TimeoutError) as exc:
+            except (
+                SimbriefError,
+                OfpError,
+                aiohttp.ClientError,
+                TimeoutError,
+                OSError,
+                ValueError,
+            ) as exc:
                 log.warning("OFP refresh failed: %s", exc)
                 return
             had_ofp = self.ofp is not None

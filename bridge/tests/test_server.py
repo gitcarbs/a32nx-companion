@@ -1,8 +1,10 @@
 import asyncio
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import pytest
 from aiohttp.test_utils import TestClient
 
 from companion.server import make_app
@@ -38,6 +40,14 @@ async def client_for(aiohttp_client: Any, source: FakeOfpSource, tmp_path: Path)
 async def recv(ws: Any) -> dict[str, Any]:
     msg: dict[str, Any] = await asyncio.wait_for(ws.receive_json(), timeout=2)
     return msg
+
+
+async def until(condition: Callable[[], bool]) -> None:
+    async def poll() -> None:
+        while not condition():
+            await asyncio.sleep(0.005)
+
+    await asyncio.wait_for(poll(), timeout=2)
 
 
 async def test_serves_index(aiohttp_client: Any, tmp_path: Path) -> None:
@@ -86,12 +96,22 @@ async def test_refresh_broadcasts_ofp_and_sources(aiohttp_client: Any, tmp_path:
         assert await recv(ws) == {"type": "sources", "sim": False, "mcdu": False, "ofp": True}
 
 
-async def test_failed_refresh_keeps_connection_open(aiohttp_client: Any, tmp_path: Path) -> None:
-    source = FakeOfpSource(None, SimbriefError("bad user"))
+@pytest.mark.parametrize(
+    "failure",
+    [SimbriefError("bad user"), OSError("read-only home"), ValueError("non-UTF-8 body")],
+    ids=["simbrief", "os", "value"],
+)
+async def test_failed_refresh_keeps_connection_open(
+    aiohttp_client: Any, tmp_path: Path, failure: Exception
+) -> None:
+    source = FakeOfpSource(None, failure)
     client = await client_for(aiohttp_client, source, tmp_path)
     ws = await client.ws_connect("/ws")
     await recv(ws)
     await ws.send_json({"type": "ofp_refresh"})
+    # Swapping the outcome before the server reads the frame would turn the failing refresh
+    # into a successful one, so wait until both the startup and the requested refresh ran.
+    await until(lambda: source.refreshes == 2)
     await ws.send_str("not json")
     await ws.send_json({"type": "dismiss", "id": "x"})
     source._fresh = normalize(FIXTURE)
