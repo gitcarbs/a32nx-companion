@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from aiohttp import web
 from aiohttp.test_utils import TestClient
 
 from companion.server import make_app
@@ -16,7 +17,7 @@ FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "ofp_krdu_katl.json")
 class FakeOfpSource:
     def __init__(self, cached: Ofp | None, fresh: Ofp | Exception | None) -> None:
         self._cached = cached
-        self._fresh = fresh
+        self.fresh = fresh
         self.refreshes = 0
 
     def cached(self) -> Ofp | None:
@@ -24,16 +25,18 @@ class FakeOfpSource:
 
     async def refresh(self) -> Ofp:
         self.refreshes += 1
-        if isinstance(self._fresh, Exception):
-            raise self._fresh
-        assert self._fresh is not None
-        return self._fresh
+        if isinstance(self.fresh, Exception):
+            raise self.fresh
+        assert self.fresh is not None
+        return self.fresh
 
 
-async def client_for(aiohttp_client: Any, source: FakeOfpSource, tmp_path: Path) -> TestClient:
+async def client_for(
+    aiohttp_client: Any, source: FakeOfpSource, tmp_path: Path
+) -> TestClient[web.Request, web.Application]:
     index = tmp_path / "index.html"
     index.write_text("<!doctype html><title>t</title>")
-    client: TestClient = await aiohttp_client(make_app(source, index))
+    client: TestClient[web.Request, web.Application] = await aiohttp_client(make_app(source, index))
     return client
 
 
@@ -88,7 +91,7 @@ async def test_refresh_broadcasts_ofp_and_sources(aiohttp_client: Any, tmp_path:
     await recv(first)
     await recv(second)
 
-    source._fresh = ofp
+    source.fresh = ofp
     await first.send_json({"type": "ofp_refresh"})
 
     for ws in (first, second):
@@ -114,7 +117,7 @@ async def test_failed_refresh_keeps_connection_open(
     await until(lambda: source.refreshes == 2)
     await ws.send_str("not json")
     await ws.send_json({"type": "dismiss", "id": "x"})
-    source._fresh = normalize(FIXTURE)
+    source.fresh = normalize(FIXTURE)
     await ws.send_json({"type": "ofp_refresh"})
     assert (await recv(ws))["type"] == "ofp"
     assert not ws.closed
@@ -128,3 +131,24 @@ async def test_startup_refresh_runs_once(aiohttp_client: Any, tmp_path: Path) ->
     if first["sources"]["ofp"] is False:
         assert (await recv(ws))["type"] == "ofp"
     assert source.refreshes == 1
+
+
+async def test_rejects_foreign_origin(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await client_for(aiohttp_client, FakeOfpSource(None, SimbriefError("x")), tmp_path)
+    response = await client.get(
+        "/ws",
+        headers={
+            "Origin": "http://evil.example",
+            "Connection": "Upgrade",
+            "Upgrade": "websocket",
+            "Sec-WebSocket-Version": "13",
+            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+        },
+    )
+    assert response.status == 403
+
+
+async def test_accepts_own_origin(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await client_for(aiohttp_client, FakeOfpSource(None, SimbriefError("x")), tmp_path)
+    ws = await client.ws_connect("/ws", origin=str(client.make_url("/").origin()))
+    assert (await recv(ws))["type"] == "hello"

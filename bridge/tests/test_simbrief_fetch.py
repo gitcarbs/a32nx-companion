@@ -88,3 +88,9 @@ def test_cached_is_none_for_a_corrupt_file(tmp_path: Path) -> None:
     cache = tmp_path / "ofp.json"
     cache.write_text("{not json")
     assert SimbriefLoader(SimbriefConfig(username="x"), cache).cached() is None
+
+
+def test_cached_is_none_for_an_undecodable_file(tmp_path: Path) -> None:
+    cache = tmp_path / "ofp.json"
+    cache.write_bytes(b"\xff\xfe{")
+    assert SimbriefLoader(SimbriefConfig(username="x"), cache).cached() is None

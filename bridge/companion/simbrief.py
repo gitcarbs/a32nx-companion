@@ -170,7 +170,8 @@ def _step_climbs(text: str, origin: str) -> tuple[tuple[str, int], ...]:
     return tuple((m[1], int(m[2])) for m in steps if m and m[1] != origin)
 
 
-def _timestamp(value: str) -> datetime:
+def _timestamp(value: Any) -> datetime:
+    value = str(value)
     if value.isdigit():
         return datetime.fromtimestamp(int(value), UTC)
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -219,7 +220,7 @@ class SimbriefLoader:
             return normalize(json.loads(self._cache_path.read_text()))
         except FileNotFoundError:
             return None
-        except (json.JSONDecodeError, OfpError) as exc:
+        except (OSError, ValueError, OfpError) as exc:
             log.warning("ignoring unreadable OFP cache %s: %s", self._cache_path, exc)
             return None
 

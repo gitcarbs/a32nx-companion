@@ -472,10 +472,9 @@ const state={checks:new Set(),cur:0,tab:"flow",ofp:null,bridge:{connected:false,
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const SKEY="a32nx-companion.v2";
-try{localStorage.removeItem("a32nx-companion.v1")}catch(e){}
 
-/* Storage can throw in private mode or with cookies blocked — a broken save
-   must never take the page down with it. */
+/* Storage can throw in private mode or with cookies blocked; the page keeps running with in-memory progress. */
+try{localStorage.removeItem("a32nx-companion.v1")}catch(e){}
 function save(){
   try{localStorage.setItem(SKEY,JSON.stringify({checks:[...state.checks],cur:state.cur,tab:state.tab}))}
   catch(e){/* progress stays in-memory for this session */}
@@ -624,7 +623,6 @@ $("#resetBtn").addEventListener("click",()=>{
   try{localStorage.removeItem(SKEY)}catch(e){}
   render();window.scrollTo({top:0});
 });
-/* Opened from file:// there is no bridge to talk to; the page runs standalone. */
 let ws=null,retryMs=2000;
 function send(msg){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(msg))}
 function onBridgeMessage(m){
@@ -635,6 +633,7 @@ function onBridgeMessage(m){
   render();
 }
 function connectBridge(){
+  /* Connect only when served over http(s); file:// runs standalone. */
   if(!location.protocol.startsWith("http"))return;
   ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws");
   ws.addEventListener("open",()=>{retryMs=2000;state.bridge.connected=true;render()});

@@ -7,6 +7,7 @@ from typing import Any, Protocol
 
 import aiohttp
 from aiohttp import web
+from yarl import URL
 
 from companion.simbrief import Ofp, OfpError, SimbriefError, to_wire
 
@@ -86,6 +87,11 @@ def make_app(ofp_source: OfpSource, index_path: Path = INDEX_PATH) -> web.Applic
 
 
 async def websocket(request: web.Request) -> web.WebSocketResponse:
+    # Browsers let any site open a WebSocket to localhost; only this page's origin may connect.
+    origin = request.headers.get("Origin")
+    if origin is not None and URL(origin).authority != request.host:
+        log.warning("rejected WebSocket from a foreign origin")
+        raise web.HTTPForbidden()
     hub = request.app[HUB]
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)

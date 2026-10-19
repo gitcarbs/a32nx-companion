@@ -13,7 +13,8 @@ FIXTURE = Path(__file__).parent / "fixtures" / "ofp_krdu_katl.json"
 
 @pytest.fixture
 def raw() -> dict[str, Any]:
-    return json.loads(FIXTURE.read_text())
+    loaded: dict[str, Any] = json.loads(FIXTURE.read_text())
+    return loaded
 
 
 def test_normalizes_route_and_airports(raw: dict[str, Any]) -> None:
@@ -67,6 +68,11 @@ def test_accepts_lbs_and_iso_time(raw: dict[str, Any]) -> None:
     ofp = normalize(raw)
     assert ofp.units == "lb"
     assert ofp.generated_at == datetime(2026, 10, 3, 21, 18, 38, tzinfo=UTC)
+
+
+def test_accepts_integer_epoch_time(raw: dict[str, Any]) -> None:
+    raw["params"]["time_generated"] = 1760820000
+    assert normalize(raw).generated_at == datetime.fromtimestamp(1760820000, UTC)
 
 
 def test_accepts_navlog_wrapped_in_fix_key(raw: dict[str, Any]) -> None:
