@@ -1,7 +1,14 @@
+import json
+import logging
 import re
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from pathlib import Path
+from typing import Any, Literal, cast
+
+import aiohttp
+
+from companion.config import SimbriefConfig
 
 Stage = Literal["CLB", "CRZ", "DES"]
 _STAGES: dict[str, Stage] = {"CLB": "CLB", "CRZ": "CRZ", "DSC": "DES"}
@@ -167,3 +174,59 @@ def _timestamp(value: str) -> datetime:
     if value.isdigit():
         return datetime.fromtimestamp(int(value), UTC)
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+SIMBRIEF_URL = "https://www.simbrief.com/api/xml.fetcher.php"
+_TIMEOUT = aiohttp.ClientTimeout(total=15)
+log = logging.getLogger(__name__)
+
+
+class SimbriefError(Exception):
+    pass
+
+
+async def fetch_raw(
+    session: aiohttp.ClientSession, config: SimbriefConfig, url: str = SIMBRIEF_URL
+) -> dict[str, Any]:
+    identity = {"username": config.username} if config.username else {"userid": config.userid or ""}
+    async with session.get(url, params={**identity, "json": "v2"}) as response:
+        try:
+            body = await response.json(content_type=None)
+        except json.JSONDecodeError as exc:
+            raise SimbriefError(f"SimBrief returned non-JSON (HTTP {response.status})") from exc
+    status = body.get("fetch", {}).get("status", "") if isinstance(body, dict) else ""
+    if response.status != 200 or status != "Success":
+        raise SimbriefError(
+            f"SimBrief fetch failed (HTTP {response.status}): {status or 'no status'}"
+        )
+    if not isinstance(body, dict):
+        raise SimbriefError("SimBrief returned a JSON value that is not an object")
+    return cast(dict[str, Any], body)
+
+
+def default_cache_path() -> Path:
+    return Path.home() / ".a32nx-companion" / "ofp.json"
+
+
+class SimbriefLoader:
+    def __init__(self, config: SimbriefConfig, cache_path: Path, url: str = SIMBRIEF_URL) -> None:
+        self._config = config
+        self._cache_path = cache_path
+        self._url = url
+
+    def cached(self) -> Ofp | None:
+        try:
+            return normalize(json.loads(self._cache_path.read_text()))
+        except FileNotFoundError:
+            return None
+        except (json.JSONDecodeError, OfpError) as exc:
+            log.warning("ignoring unreadable OFP cache %s: %s", self._cache_path, exc)
+            return None
+
+    async def refresh(self) -> Ofp:
+        async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
+            raw = await fetch_raw(session, self._config, self._url)
+        ofp = normalize(raw)
+        self._cache_path.parent.mkdir(parents=True, exist_ok=True)
+        self._cache_path.write_text(json.dumps(raw))
+        return ofp
