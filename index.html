@@ -29,6 +29,10 @@ h1 .neo{color:var(--cyn)}
 .hdr-right{display:flex;align-items:center;gap:14px}
 .prog-pill{border:1px solid var(--line);border-radius:4px;padding:7px 12px;font-size:12px;color:var(--dim);background:var(--panel2)}
 .prog-pill b{color:var(--grn);font-weight:600}
+.conn{border:1px solid var(--line);border-radius:4px;padding:7px 12px;font-size:11.5px;letter-spacing:.08em;color:var(--dimmer);background:var(--panel2);display:flex;gap:12px}
+.conn[hidden]{display:none}
+.conn span::after{content:" ●"}
+.conn .on{color:var(--grn)}
 .reset{background:none;border:1px solid var(--line);color:var(--dim);border-radius:4px;padding:7px 12px;font-size:12px;letter-spacing:.05em}
 .reset:hover{border-color:var(--amb);color:var(--amb)}
 
@@ -109,6 +113,8 @@ h1 .neo{color:var(--cyn)}
 .rail td:first-child{color:var(--dim);padding-right:10px;white-space:nowrap}
 .rail td:last-child{color:var(--amb);text-align:right;font-weight:500}
 .rail .rl-note{color:var(--dim);font-size:11.5px;margin-top:9px;border-top:1px solid #33301f;padding-top:8px}
+.rail-refresh{margin-top:10px;width:100%;background:none;border:1px solid #3a3423;color:var(--amb);border-radius:4px;padding:6px 0;font-size:11.5px;letter-spacing:.08em}
+.rail-refresh:hover{border-color:var(--amb)}
 
 /* footer nav */
 .pager{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,#0b0e12 30%);padding:22px 18px 16px;pointer-events:none}
@@ -127,6 +133,7 @@ h1 .neo{color:var(--cyn)}
       <div class="sub">SIMBRIEF → SECURING · FLYBYWIRE A32NX · MSFS 2024 · BEYONDATC COMMS</div>
     </div>
     <div class="hdr-right">
+      <div class="conn" id="connPill" hidden></div>
       <div class="prog-pill">FLIGHT PROGRESS <b id="progPct">0%</b></div>
       <button class="reset" id="resetBtn">RESET FLIGHT</button>
     </div>
@@ -461,8 +468,9 @@ D.forEach(p=>{
   (p.flows||[]).forEach(sec=>sec.s.forEach(st=>claim(st,`${p.id}.${sec.k}.${st.id}`)));
   if(p.cl&&p.cl.items)p.cl.items.forEach(it=>{if(!it.line)claim(it,`${p.id}.cl.${it.id}`)});
 });
-const state={checks:new Set(),cur:0,tab:"flow"};
+const state={checks:new Set(),cur:0,tab:"flow",ofp:null,bridge:{connected:false,sources:{sim:false,mcdu:false,ofp:false}}};
 const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const SKEY="a32nx-companion.v2";
 try{localStorage.removeItem("a32nx-companion.v1")}catch(e){}
 
@@ -492,6 +500,26 @@ function phaseItems(p){
 function phaseTotals(pi){
   const items=phaseItems(D[pi]);
   return[items.filter(it=>state.checks.has(it.key)).length,items.length];
+}
+const wt=(v,o)=>Math.round(v).toLocaleString("en-US").replace(/,/g," ")+" "+o.units;
+const fl=n=>"FL"+String(n).padStart(3,"0");
+function ofpRows(pid,o){
+  const destFob=o.fixes.length?wt(o.fixes[o.fixes.length-1].planned_fob,o):"—";
+  const steps=o.step_climbs.length?o.step_climbs.map(([f,l])=>`${f} ${fl(l)}`).join(" · "):"none";
+  const r={
+    route:["Route",`${o.origin} → ${o.dest}`],altn:["ALTN",o.altn||"—"],ci:["CI",o.cost_index],
+    crz:["CRZ",fl(o.initial_fl)],steps:["Step climbs",steps],block:["Block fuel",wt(o.block_fuel,o)],
+    trip:["Trip fuel",wt(o.trip_fuel,o)],fres:["Final reserve",wt(o.final_reserve,o)],
+    zfw:["ZFW",wt(o.zfw,o)],tow:["TOW",wt(o.tow,o)],ldw:["LDW",wt(o.ldw,o)],
+    deprwy:["Dep RWY",o.origin_rwy||"—"],sid:["SID",o.sid||"—"],
+    arrrwy:["Arr RWY",o.dest_rwy||"—"],star:["STAR",o.star||"—"],destfob:["Plan FOB at dest",destFob]};
+  const by={
+    plan:["route","altn","ci","crz","block","trip","zfw","tow"],dark:["route","altn","deprwy"],
+    prep:["ci","crz","zfw","block","tow","deprwy"],clr:["deprwy","sid","crz"],
+    push:["block","deprwy"],taxi:["deprwy","sid","tow"],tkof:["deprwy","tow"],
+    clb:["crz","steps"],crz:["crz","steps","star","arrrwy","trip"],des:["star","arrrwy","ldw"],
+    appr:["arrrwy","ldw"],land:["arrrwy","destfob"],park:["destfob","fres","trip"]};
+  return by[pid].map(k=>r[k]);
 }
 function phaseDone(pi){const[c,t]=phaseTotals(pi);return t>0&&c===t}
 
@@ -548,10 +576,8 @@ function renderPhase(){
   }
   h+=`</div>`;
   $("#phaseArt").innerHTML=h;
-  const rail=p.rail;
-  $("#railBox").innerHTML=rail?`<div class="rail"><div class="rail-tag">WORKED EXAMPLE</div><div class="rail-route">KRDU → KATL</div>
-    <table>${rail.rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</table>
-    <div class="rl-note">${rail.note}</div></div>`:"";
+  $("#railBox").innerHTML=renderRail(p);
+  const rb=$("#ofpRefresh");if(rb)rb.addEventListener("click",()=>send({type:"ofp_refresh"}));
   $("#phaseArt").querySelectorAll(".tab:not(:disabled)").forEach(b=>b.addEventListener("click",()=>{state.tab=b.dataset.tab;render()}));
   $("#phaseArt").querySelectorAll("input[data-k]").forEach(cb=>cb.addEventListener("change",()=>{toggle(cb.dataset.k)}));
   $("#phaseArt").querySelectorAll(".cl-item[data-k]").forEach(el=>{
@@ -563,9 +589,32 @@ function renderPhase(){
   $("#nextBtn").disabled=pi===D.length-1;
 }
 
+function renderRail(p){
+  const o=state.ofp;
+  if(o){
+    const when=new Date(o.generated_at).toISOString().slice(0,16).replace("T"," ")+"Z";
+    const rows=ofpRows(p.id,o);
+    const refresh=state.bridge.connected?`<button class="rail-refresh" id="ofpRefresh">↻ REFRESH OFP</button>`:"";
+    return `<div class="rail"><div class="rail-tag">YOUR OFP</div><div class="rail-route">${esc(o.origin)} → ${esc(o.dest)}</div>
+      <table>${rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join("")}</table>
+      <div class="rl-note">SimBrief OFP · generated ${esc(when)}${o.airac?` · AIRAC ${esc(o.airac)}`:""}</div>${refresh}</div>`;
+  }
+  const rail=p.rail;
+  return rail?`<div class="rail"><div class="rail-tag">EXAMPLE</div><div class="rail-route">KRDU → KATL</div>
+    <table>${rail.rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</table>
+    <div class="rl-note">${rail.note}</div></div>`:"";
+}
+function renderConn(){
+  const el=$("#connPill"),b=state.bridge;
+  el.hidden=!b.connected;
+  if(!b.connected)return;
+  const dot=(label,on)=>`<span class="${on?"on":""}">${label}</span>`;
+  el.innerHTML=dot("BRIDGE",true)+dot("SIM",b.sources.sim)+dot("OFP",b.sources.ofp)+dot("MCDU",b.sources.mcdu);
+}
+
 function toggle(k){state.checks.has(k)?state.checks.delete(k):state.checks.add(k);render()}
 function globalProg(){let c=0,t=0;D.forEach((_,i)=>{const[a,b]=phaseTotals(i);c+=a;t+=b});return t?Math.round(100*c/t):0}
-function render(){drawProfile();renderPhase();$("#progPct").textContent=globalProg()+"%";save()}
+function render(){drawProfile();renderPhase();renderConn();$("#progPct").textContent=globalProg()+"%";save()}
 
 $("#prevBtn").addEventListener("click",()=>{if(state.cur>0){state.cur--;state.tab="flow";render();window.scrollTo({top:0})}});
 $("#nextBtn").addEventListener("click",()=>{if(state.cur<D.length-1){state.cur++;state.tab="flow";render();window.scrollTo({top:0})}});
@@ -575,8 +624,29 @@ $("#resetBtn").addEventListener("click",()=>{
   try{localStorage.removeItem(SKEY)}catch(e){}
   render();window.scrollTo({top:0});
 });
+/* Opened from file:// there is no bridge to talk to; the page runs standalone. */
+let ws=null,retryMs=2000;
+function send(msg){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(msg))}
+function onBridgeMessage(m){
+  if(m.type==="hello"){state.bridge.sources=m.sources}
+  else if(m.type==="sources"){state.bridge.sources={sim:m.sim,mcdu:m.mcdu,ofp:m.ofp}}
+  else if(m.type==="ofp"){state.ofp=m.data;state.bridge.sources.ofp=true}
+  else return;
+  render();
+}
+function connectBridge(){
+  if(!location.protocol.startsWith("http"))return;
+  ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws");
+  ws.addEventListener("open",()=>{retryMs=2000;state.bridge.connected=true;render()});
+  ws.addEventListener("message",e=>{try{onBridgeMessage(JSON.parse(e.data))}catch(err){console.error("bad bridge message",err)}});
+  ws.addEventListener("close",()=>{
+    state.bridge.connected=false;render();
+    setTimeout(connectBridge,retryMs);retryMs=Math.min(retryMs*2,30000);
+  });
+}
 load();
 render();
+connectBridge();
 </script>
 </body>
 </html>
