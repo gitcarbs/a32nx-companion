@@ -29,6 +29,10 @@ h1 .neo{color:var(--cyn)}
 .hdr-right{display:flex;align-items:center;gap:14px}
 .prog-pill{border:1px solid var(--line);border-radius:4px;padding:7px 12px;font-size:12px;color:var(--dim);background:var(--panel2)}
 .prog-pill b{color:var(--grn);font-weight:600}
+.conn{border:1px solid var(--line);border-radius:4px;padding:7px 12px;font-size:11.5px;letter-spacing:.08em;color:var(--dimmer);background:var(--panel2);display:flex;gap:12px}
+.conn[hidden]{display:none}
+.conn span::after{content:" ●"}
+.conn .on{color:var(--grn)}
 .reset{background:none;border:1px solid var(--line);color:var(--dim);border-radius:4px;padding:7px 12px;font-size:12px;letter-spacing:.05em}
 .reset:hover{border-color:var(--amb);color:var(--amb)}
 
@@ -109,6 +113,8 @@ h1 .neo{color:var(--cyn)}
 .rail td:first-child{color:var(--dim);padding-right:10px;white-space:nowrap}
 .rail td:last-child{color:var(--amb);text-align:right;font-weight:500}
 .rail .rl-note{color:var(--dim);font-size:11.5px;margin-top:9px;border-top:1px solid #33301f;padding-top:8px}
+.rail-refresh{margin-top:10px;width:100%;background:none;border:1px solid #3a3423;color:var(--amb);border-radius:4px;padding:6px 0;font-size:11.5px;letter-spacing:.08em}
+.rail-refresh:hover{border-color:var(--amb)}
 
 /* footer nav */
 .pager{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,#0b0e12 30%);padding:22px 18px 16px;pointer-events:none}
@@ -127,6 +133,7 @@ h1 .neo{color:var(--cyn)}
       <div class="sub">SIMBRIEF → SECURING · FLYBYWIRE A32NX · MSFS 2024 · BEYONDATC COMMS</div>
     </div>
     <div class="hdr-right">
+      <div class="conn" id="connPill" hidden></div>
       <div class="prog-pill">FLIGHT PROGRESS <b id="progPct">0%</b></div>
       <button class="reset" id="resetBtn">RESET FLIGHT</button>
     </div>
@@ -142,319 +149,332 @@ h1 .neo{color:var(--cyn)}
   <button id="nextBtn">NEXT PHASE ▶</button>
 </div></div>
 <script>
+const GY=118;
 const D=[
 /* ============ 0 PLAN ============ */
-{id:"plan",nav:"PLAN",title:"FLIGHT PLANNING — SIMBRIEF",goal:"Build the OFP that everything downstream feeds off: the MCDU uplink, flyPad fuel & payload, the performance calculator, and BeyondATC's filed flight plan.",
+{id:"plan",nav:"PLAN",y:GY,title:"FLIGHT PLANNING — SIMBRIEF",goal:"Build the OFP that everything downstream feeds off: the MCDU uplink, flyPad fuel & payload, the performance calculator, and BeyondATC's filed flight plan.",
 batc:["BeyondATC pulls your <b>latest generated SimBrief OFP</b> automatically — generate the plan first, then open BATC and confirm the flight appears before loading the sim.","In BATC, pick the flight and spawn your session at the departure airport. Traffic and controllers build around your filed route and EOBT."],
 flows:[
- {h:"DISPATCH SETUP",s:[
-  {t:"<b>Airframe</b> — select the FlyByWire A32NX profile (import FBW's official SimBrief airframe if you haven't; it carries correct OEW, MZFW/MTOW and fuel figures)",c:"SIMBRIEF"},
-  {t:"<b>Origin / Destination / ALTN</b> — enter ICAOs; let SimBrief suggest an alternate or pick one you know",c:"SIMBRIEF"},
-  {t:"<b>Route</b> — click a recent real-world route from the route finder rather than DCT; it'll have flyable SIDs/STARs",c:"SIMBRIEF"},
-  {t:"<b>Cost Index</b> — 15–25 is a sane default for the neo on short/medium haul",c:"SIMBRIEF"},
-  {t:"<b>Units</b> — KGS to match A32NX cockpit defaults; saves you a conversion later",c:"SIMBRIEF"},
-  {t:"<b>Generate OFP</b>",c:"SIMBRIEF"}]},
- {h:"READ THE OFP (THE NUMBERS YOU'LL RE-ENTER LATER)",s:[
-  {t:"<b>BLOCK FUEL</b> — goes into flyPad fuel page and MCDU INIT B",c:"OFP"},
-  {t:"<b>ZFW / ZFWCG</b> — goes into MCDU INIT B (flyPad W&B shows the same after boarding)",c:"OFP"},
-  {t:"<b>CRZ FL and step climbs</b> — INIT A cruise level; note any step (e.g. FL320 → FL360)",c:"OFP"},
-  {t:"<b>Planned runway + SID/STAR</b> — advisory only; BeyondATC's ATIS and clearance are authoritative in-sim",c:"OFP"},
-  {t:"<b>TRIP / CONT / FINAL RES fuel breakdown</b> — your in-cruise fuel checks compare against these",c:"OFP"},
-  {t:"<b>SimBrief userID linked in flyPad</b> — EFB Settings → 3rd party → SimBrief, so OFP auto-imports at the gate",c:"EFB",n:"One-time setup, but the single most common 'why is my uplink empty' cause."}]}],
+ {h:"DISPATCH SETUP",k:"setup",s:[
+  {id:"airframe",t:"<b>Airframe</b> — select the FlyByWire A32NX profile (import FBW's official SimBrief airframe if you haven't; it carries correct OEW, MZFW/MTOW and fuel figures)",c:"SIMBRIEF"},
+  {id:"airports",t:"<b>Origin / Destination / ALTN</b> — enter ICAOs; let SimBrief suggest an alternate or pick one you know",c:"SIMBRIEF"},
+  {id:"route",t:"<b>Route</b> — click a recent real-world route from the route finder rather than DCT; it'll have flyable SIDs/STARs",c:"SIMBRIEF"},
+  {id:"ci",t:"<b>Cost Index</b> — 15–25 is a sane default for the neo on short/medium haul",c:"SIMBRIEF"},
+  {id:"units",t:"<b>Units</b> — KGS to match A32NX cockpit defaults; saves you a conversion later",c:"SIMBRIEF"},
+  {id:"generate",t:"<b>Generate OFP</b>",c:"SIMBRIEF"}]},
+ {h:"READ THE OFP (THE NUMBERS YOU'LL RE-ENTER LATER)",k:"ofp",s:[
+  {id:"block",t:"<b>BLOCK FUEL</b> — goes into flyPad fuel page and MCDU INIT B",c:"OFP"},
+  {id:"zfw",t:"<b>ZFW / ZFWCG</b> — goes into MCDU INIT B (flyPad W&B shows the same after boarding)",c:"OFP"},
+  {id:"crz",t:"<b>CRZ FL and step climbs</b> — INIT A cruise level; note any step (e.g. FL320 → FL360)",c:"OFP"},
+  {id:"rwy",t:"<b>Planned runway + SID/STAR</b> — advisory only; BeyondATC's ATIS and clearance are authoritative in-sim",c:"OFP"},
+  {id:"fuel",t:"<b>TRIP / CONT / FINAL RES fuel breakdown</b> — your in-cruise fuel checks compare against these",c:"OFP"},
+  {id:"flypad_link",t:"<b>SimBrief userID linked in flyPad</b> — EFB Settings → 3rd party → SimBrief, so OFP auto-imports at the gate",c:"EFB",n:"One-time setup, but the single most common 'why is my uplink empty' cause."}]}],
 cl:null,
 rail:{rows:[["Route","KRDU → KATL"],["Airframe","A20N (FBW)"],["Dist / time","356 nm · 1h04"],["CI","15"],["CRZ","FL320"],["ALTN","KBHM"],["Block fuel","5 400 kg"],["Trip fuel","2 650 kg"],["ZFW","55 300 kg"],["TOW","60 500 kg"]],note:"Example numbers are illustrative for a lightly-loaded neo on this sector — always fly your own OFP's figures."}},
 
 /* ============ 1 COLD & DARK ============ */
-{id:"dark",nav:"COLD & DARK",title:"COLD & DARK → AIRCRAFT POWERED",goal:"Bring the aircraft from a dead battery bus to a powered, aligning state. Order matters: batteries, external power or APU, then ADIRS immediately — alignment is your longest timer (~10 min).",
+{id:"dark",nav:"COLD & DARK",y:GY,title:"COLD & DARK → AIRCRAFT POWERED",goal:"Bring the aircraft from a dead battery bus to a powered, aligning state. Order matters: batteries, external power or APU, then ADIRS immediately — alignment is your longest timer (~10 min).",
 batc:["Nothing to say on the radio yet. If you want ambience, tune the ATIS once avionics are up — BATC's ATIS is what assigns your runway later."],
 flows:[
- {h:"ELECTRICAL POWER-UP",s:[
-  {t:"<b>BAT 1 + BAT 2</b> — ON",c:"OVHD ELEC"},
-  {t:"<b>EXT PWR</b> — ON when AVAIL is lit",c:"OVHD ELEC",n:"No ground cart? flyPad → Ground Services → connect external power. Otherwise skip to APU."},
-  {t:"<b>APU (if no ext pwr)</b> — MASTER SW ON, wait for ECAM APU flap, then START",c:"OVHD APU",n:"On ext pwr, delay APU start until ~5 min before pushback — saves fuel, matches real ops."}]},
- {h:"IMMEDIATELY AFTER POWER",s:[
-  {t:"<b>ADIRS 1, 2, 3</b> — NAV",c:"OVHD ADIRS",n:"Start the ~10 min alignment now and do everything else while it runs. IR lights extinguish when aligned."},
-  {t:"<b>Cockpit / integ / dome lights</b> — as required",c:"OVHD"}]},
- {h:"SAFETY TESTS & OVERHEAD SCAN",s:[
-  {t:"<b>ENG 1 FIRE test</b> — press & hold, verify aural + master warn + ENG FIRE lights",c:"OVHD FIRE"},
-  {t:"<b>ENG 2 FIRE test</b> — same",c:"OVHD FIRE"},
-  {t:"<b>APU FIRE test</b> — same",c:"OVHD FIRE"},
-  {t:"<b>EMER EXIT LT</b> — ARM",c:"OVHD"},
-  {t:"<b>SEAT BELTS</b> — ON",c:"OVHD"},
-  {t:"<b>NO PED / NO SMOKING</b> — AUTO",c:"OVHD"},
-  {t:"<b>PROBE/WINDOW HEAT</b> — AUTO (dark)",c:"OVHD"},
-  {t:"<b>Overhead scan</b> — all white lights out top-to-bottom, guarded switches guarded",c:"OVHD",n:"The A320 dark-cockpit philosophy: a clean overhead is an overhead with no white lights."}]}],
+ {h:"ELECTRICAL POWER-UP",k:"elec",s:[
+  {id:"bat",t:"<b>BAT 1 + BAT 2</b> — ON",c:"OVHD ELEC"},
+  {id:"ext_pwr",t:"<b>EXT PWR</b> — ON when AVAIL is lit",c:"OVHD ELEC",n:"No ground cart? flyPad → Ground Services → connect external power. Otherwise skip to APU."},
+  {id:"apu",t:"<b>APU (if no ext pwr)</b> — MASTER SW ON, wait for ECAM APU flap, then START",c:"OVHD APU",n:"On ext pwr, delay APU start until ~5 min before pushback — saves fuel, matches real ops."}]},
+ {h:"IMMEDIATELY AFTER POWER",k:"power",s:[
+  {id:"adirs",t:"<b>ADIRS 1, 2, 3</b> — NAV",c:"OVHD ADIRS",n:"Start the ~10 min alignment now and do everything else while it runs. IR lights extinguish when aligned."},
+  {id:"lights",t:"<b>Cockpit / integ / dome lights</b> — as required",c:"OVHD"}]},
+ {h:"SAFETY TESTS & OVERHEAD SCAN",k:"tests",s:[
+  {id:"eng1_fire",t:"<b>ENG 1 FIRE test</b> — press & hold, verify aural + master warn + ENG FIRE lights",c:"OVHD FIRE"},
+  {id:"eng2_fire",t:"<b>ENG 2 FIRE test</b> — same",c:"OVHD FIRE"},
+  {id:"apu_fire",t:"<b>APU FIRE test</b> — same",c:"OVHD FIRE"},
+  {id:"emer_exit",t:"<b>EMER EXIT LT</b> — ARM",c:"OVHD"},
+  {id:"seat_belts",t:"<b>SEAT BELTS</b> — ON",c:"OVHD"},
+  {id:"no_smoking",t:"<b>NO PED / NO SMOKING</b> — AUTO",c:"OVHD"},
+  {id:"probe_heat",t:"<b>PROBE/WINDOW HEAT</b> — AUTO (dark)",c:"OVHD"},
+  {id:"ovhd_scan",t:"<b>Overhead scan</b> — all white lights out top-to-bottom, guarded switches guarded",c:"OVHD",n:"The A320 dark-cockpit philosophy: a clean overhead is an overhead with no white lights."}]}],
 cl:{title:"NO DEDICATED CHECKLIST",none:"This work is verified later as the single line 'COCKPIT PREP — COMPLETED' on the BEFORE START checklist. Flows do the work; checklists confirm it."},
 rail:{rows:[["Power source","EXT PWR (gate 74)"],["ADIRS start","T-45 min"],["Align time","~10 min"],["APU start","T-8 min (before push)"]],note:"On this sector you have time to spare — a 1h04 flight still wants the full 30–40 min turnaround rhythm if you're doing it properly."}},
 
 /* ============ 2 PREP ============ */
-{id:"prep",nav:"MCDU PREP",title:"COCKPIT PREP — FMGC & PERFORMANCE",goal:"Program the box, load the jet. INIT A → F-PLN → INIT B → PERF, in that order, because fuel predictions need the route and performance needs the weights.",
+{id:"prep",nav:"MCDU PREP",y:GY,title:"COCKPIT PREP — FMGC & PERFORMANCE",goal:"Program the box, load the jet. INIT A → F-PLN → INIT B → PERF, in that order, because fuel predictions need the route and performance needs the weights.",
 batc:["Tune and copy the <b>ATIS</b> now (frequency on the chart, or BATC's UI). Note the letter, QNH and runway in use — your PERF TO calc must match the BATC-assigned runway, not SimBrief's guess."],
 flows:[
- {h:"MCDU — DATA & INIT A",s:[
-  {t:"<b>DATA → STATUS</b> — AIRAC cycle matches your SimBrief cycle",c:"MCDU",n:"Mismatched cycles = waypoints that won't resolve on uplink."},
-  {t:"<b>INIT A → INIT REQUEST*</b> — uplinks the SimBrief plan: FROM/TO, route, ALTN, FLT NBR",c:"MCDU"},
-  {t:"<b>CI</b> — confirm uplinked value",c:"MCDU"},
-  {t:"<b>CRZ FL / TEMP</b> — confirm (e.g. FL320)",c:"MCDU"},
-  {t:"<b>FLT NBR</b> — set if blank",c:"MCDU"}]},
- {h:"MCDU — F-PLN & RAD NAV",s:[
-  {t:"<b>F-PLN page</b> — step through legs against the OFP line by line",c:"MCDU"},
-  {t:"<b>Discontinuities</b> — clear any that shouldn't be there (CLR key onto the discont)",c:"MCDU"},
-  {t:"<b>SID</b> — leave unset or set the ATIS-likely one; be ready to swap after BATC clearance",c:"MCDU"},
-  {t:"<b>RAD NAV</b> — verify autotuned; note departure-return ILS ident",c:"MCDU"}]},
- {h:"FLYPAD — LOAD THE AIRCRAFT",s:[
-  {t:"<b>flyPad → Fuel</b> — set block fuel from OFP, refuel",c:"EFB"},
-  {t:"<b>flyPad → Payload</b> — board pax + cargo to OFP figures",c:"EFB",n:"Instant vs real-time loading is a flyPad setting; real-time paces nicely with the rest of prep."},
-  {t:"<b>Doors</b> — leave open until boarding complete",c:"EFB"}]},
- {h:"MCDU — INIT B & PERF TO",s:[
-  {t:"<b>INIT B → ZFW / ZFWCG</b> — from flyPad W&B page after boarding",c:"MCDU"},
-  {t:"<b>BLOCK</b> — enter block fuel; predictions populate",c:"MCDU"},
-  {t:"<b>flyPad → Performance</b> — compute takeoff perf for the ATIS runway: CONF, FLEX, V-speeds",c:"EFB"},
-  {t:"<b>PERF TO → FLAPS/THS</b> — e.g. 1/UP0.0",c:"MCDU"},
-  {t:"<b>PERF TO → FLEX TEMP</b> — from calculator",c:"MCDU"},
-  {t:"<b>PERF TO → V1 · VR · V2</b> — insert all three",c:"MCDU"},
-  {t:"<b>THR RED / ACC + TRANS ALT</b> — verify (US: trans alt 18 000)",c:"MCDU"}]},
- {h:"FCU & LOWER PANEL",s:[
-  {t:"<b>Baro ref</b> — set ATIS QNH both sides + ISIS",c:"FCU/ISIS"},
-  {t:"<b>ND mode/range</b> — ARC 10–20 nm for departure",c:"FCU"},
-  {t:"<b>FD</b> — ON both sides, <b>LS</b> off unless departure return briefed",c:"FCU"}]}],
+ {h:"MCDU — DATA & INIT A",k:"init",s:[
+  {id:"status",t:"<b>DATA → STATUS</b> — AIRAC cycle matches your SimBrief cycle",c:"MCDU",n:"Mismatched cycles = waypoints that won't resolve on uplink."},
+  {id:"init_request",t:"<b>INIT A → INIT REQUEST*</b> — uplinks the SimBrief plan: FROM/TO, route, ALTN, FLT NBR",c:"MCDU"},
+  {id:"ci",t:"<b>CI</b> — confirm uplinked value",c:"MCDU"},
+  {id:"crz_fl",t:"<b>CRZ FL / TEMP</b> — confirm (e.g. FL320)",c:"MCDU"},
+  {id:"flt_nbr",t:"<b>FLT NBR</b> — set if blank",c:"MCDU"}]},
+ {h:"MCDU — F-PLN & RAD NAV",k:"fpln",s:[
+  {id:"legs",t:"<b>F-PLN page</b> — step through legs against the OFP line by line",c:"MCDU"},
+  {id:"discont",t:"<b>Discontinuities</b> — clear any that shouldn't be there (CLR key onto the discont)",c:"MCDU"},
+  {id:"sid",t:"<b>SID</b> — leave unset or set the ATIS-likely one; be ready to swap after BATC clearance",c:"MCDU"},
+  {id:"radnav",t:"<b>RAD NAV</b> — verify autotuned; note departure-return ILS ident",c:"MCDU"}]},
+ {h:"FLYPAD — LOAD THE AIRCRAFT",k:"load",s:[
+  {id:"fuel",t:"<b>flyPad → Fuel</b> — set block fuel from OFP, refuel",c:"EFB"},
+  {id:"payload",t:"<b>flyPad → Payload</b> — board pax + cargo to OFP figures",c:"EFB",n:"Instant vs real-time loading is a flyPad setting; real-time paces nicely with the rest of prep."},
+  {id:"doors",t:"<b>Doors</b> — leave open until boarding complete",c:"EFB"}]},
+ {h:"MCDU — INIT B & PERF TO",k:"perf",s:[
+  {id:"zfw",t:"<b>INIT B → ZFW / ZFWCG</b> — from flyPad W&B page after boarding",c:"MCDU"},
+  {id:"block",t:"<b>BLOCK</b> — enter block fuel; predictions populate",c:"MCDU"},
+  {id:"perf_calc",t:"<b>flyPad → Performance</b> — compute takeoff perf for the ATIS runway: CONF, FLEX, V-speeds",c:"EFB"},
+  {id:"flaps_ths",t:"<b>PERF TO → FLAPS/THS</b> — e.g. 1/UP0.0",c:"MCDU"},
+  {id:"flex",t:"<b>PERF TO → FLEX TEMP</b> — from calculator",c:"MCDU"},
+  {id:"vspeeds",t:"<b>PERF TO → V1 · VR · V2</b> — insert all three",c:"MCDU"},
+  {id:"thr_red",t:"<b>THR RED / ACC + TRANS ALT</b> — verify (US: trans alt 18 000)",c:"MCDU"}]},
+ {h:"FCU & LOWER PANEL",k:"fcu",s:[
+  {id:"baro",t:"<b>Baro ref</b> — set ATIS QNH both sides + ISIS",c:"FCU/ISIS"},
+  {id:"nd",t:"<b>ND mode/range</b> — ARC 10–20 nm for departure",c:"FCU"},
+  {id:"fd",t:"<b>FD</b> — ON both sides, <b>LS</b> off unless departure return briefed",c:"FCU"}]}],
 cl:null,
 rail:{rows:[["ATIS","INFO C · RWY 23L"],["QNH","30.12 inHg"],["CI","15"],["CRZ","FL320"],["ZFW / ZFWCG","55 300 kg / 27.1%"],["BLOCK","5 400 kg"],["CONF / THS","1+F / UP0.0"],["FLEX","62°C"],["V1 · VR · V2","133 · 135 · 138"]],note:"V-speeds and FLEX shown for ~60.5 t TOW, CONF 1+F, dry 10 000 ft runway. Recompute in flyPad for your actual runway and weight."}},
 
 /* ============ 3 CLEARANCE ============ */
-{id:"clr",nav:"CLEARANCE",title:"IFR CLEARANCE — BEYONDATC",goal:"Get the clearance, then make the aircraft agree with it: SID into the F-PLN, initial altitude on the FCU, squawk in the box.",
+{id:"clr",nav:"CLEARANCE",y:GY,title:"IFR CLEARANCE — BEYONDATC",goal:"Get the clearance, then make the aircraft agree with it: SID into the F-PLN, initial altitude on the FCU, squawk in the box.",
 batc:["Contact <b>Clearance Delivery</b> ~10 min before push (BATC menu → request IFR clearance).","Expect the CRAFT items: <span class='say'>cleared to KATL via the LILLS4 departure, then as filed · climb 5 000, expect FL320 in 10 · departure 125.35 · squawk 2244</span>.","Read back — or let BATC <b>auto-respond</b> handle readbacks if you prefer flying to talking. Your call, it's a setting.","BATC amendments are normal: different SID or initial altitude than SimBrief planned. The clearance wins."],
 flows:[
- {h:"MAKE THE JET MATCH THE CLEARANCE",s:[
-  {t:"<b>F-PLN → LAT REV at origin</b> — insert the cleared SID + transition",c:"MCDU"},
-  {t:"<b>Check for new discontinuities</b> after SID insertion",c:"MCDU"},
-  {t:"<b>FCU ALT</b> — set initial climb altitude (e.g. 5 000)",c:"FCU"},
-  {t:"<b>XPDR code</b> — set squawk, leave STBY for now",c:"PED"},
-  {t:"<b>PERF TO</b> — re-verify if the runway changed from your calc",c:"MCDU",n:"Runway change = full flyPad perf recompute. Don't fly old numbers."},
-  {t:"<b>Departure brief</b> — SID routing, initial alt, engine-out plan, return runway/ILS",c:"BRIEF"}]}],
+ {h:"MAKE THE JET MATCH THE CLEARANCE",k:"match",s:[
+  {id:"sid",t:"<b>F-PLN → LAT REV at origin</b> — insert the cleared SID + transition",c:"MCDU"},
+  {id:"discont",t:"<b>Check for new discontinuities</b> after SID insertion",c:"MCDU"},
+  {id:"fcu_alt",t:"<b>FCU ALT</b> — set initial climb altitude (e.g. 5 000)",c:"FCU"},
+  {id:"xpdr_code",t:"<b>XPDR code</b> — set squawk, leave STBY for now",c:"PED"},
+  {id:"perf_to",t:"<b>PERF TO</b> — re-verify if the runway changed from your calc",c:"MCDU",n:"Runway change = full flyPad perf recompute. Don't fly old numbers."},
+  {id:"brief",t:"<b>Departure brief</b> — SID routing, initial alt, engine-out plan, return runway/ILS",c:"BRIEF"}]}],
 cl:{title:"BEFORE START C/L — ABOVE THE LINE",items:[
- {ch:"COCKPIT PREP",rsp:"COMPLETED (BOTH)"},{ch:"GEAR PINS & COVERS",rsp:"REMOVED"},{ch:"SIGNS",rsp:"ON / AUTO"},{ch:"ADIRS",rsp:"NAV"},{ch:"FUEL QUANTITY",rsp:"___ KG"},{ch:"TO DATA",rsp:"SET"},{ch:"BARO REF",rsp:"___ SET (BOTH)"}]},
+ {id:"cockpit_prep",ch:"COCKPIT PREP",rsp:"COMPLETED (BOTH)"},{id:"gear_pins",ch:"GEAR PINS & COVERS",rsp:"REMOVED"},{id:"signs",ch:"SIGNS",rsp:"ON / AUTO"},{id:"adirs",ch:"ADIRS",rsp:"NAV"},{id:"fuel_qty",ch:"FUEL QUANTITY",rsp:"___ KG"},{id:"to_data",ch:"TO DATA",rsp:"SET"},{id:"baro",ch:"BARO REF",rsp:"___ SET (BOTH)"}]},
 rail:{rows:[["Cleared via","LILLS4, as filed"],["Initial climb","5 000 ft"],["Expect","FL320 in 10"],["Departure freq","125.35"],["Squawk","2244"],["FCU ALT set","5000"]],note:"Illustrative clearance. The pattern (SID · initial alt · expect · freq · squawk) is what BATC will always give you — copy it in that order."}},
 /* ============ 4 PUSH & START ============ */
-{id:"push",nav:"PUSH & START",title:"PUSHBACK & ENGINE START",goal:"Close up, transfer to APU power, push, and start 2 then 1. The A320 starts are fully automatic — your job is monitoring, not managing.",
+{id:"push",nav:"PUSH & START",y:GY,title:"PUSHBACK & ENGINE START",goal:"Close up, transfer to APU power, push, and start 2 then 1. The A320 starts are fully automatic — your job is monitoring, not managing.",
 batc:["Contact <b>Ground</b>: <span class='say'>request pushback and engine start</span>. BATC clears you with a facing direction — comply, other traffic is real.","The push itself is yours: flyPad pushback tug page (or GSX if you run it). BATC controls the clearance, not the tug.","When start is complete and you're ready: <span class='say'>request taxi</span> — next phase."],
 flows:[
- {h:"BEFORE PUSHBACK",s:[
-  {t:"<b>APU</b> — MASTER ON → START (if not already running)",c:"OVHD APU"},
-  {t:"<b>APU BLEED</b> — ON",c:"OVHD AIR"},
-  {t:"<b>EXT PWR</b> — OFF, then disconnect via flyPad ground services",c:"OVHD ELEC"},
-  {t:"<b>flyPad → Doors</b> — all closed, jetway/stairs disconnected",c:"EFB"},
-  {t:"<b>FUEL PUMPS</b> — all six ON",c:"OVHD FUEL"},
-  {t:"<b>BEACON</b> — ON",c:"OVHD EXT LT"},
-  {t:"<b>Windows</b> — closed & locked",c:"SIDE"},
-  {t:"<b>THR LEVERS</b> — idle · <b>PARK BRK</b> — as required for push",c:"PED"}]},
- {h:"ENGINE START (DURING / AFTER PUSH)",s:[
-  {t:"<b>XPDR</b> — AUTO/ON",c:"PED"},
-  {t:"<b>ENG MODE SEL</b> — IGN/START",c:"PED",n:"Packs shed automatically; ECAM swaps to the ENG page."},
-  {t:"<b>ENG 2 MASTER</b> — ON. Monitor: N2 rise → fuel flow ~22% N2 → EGT light-off → stabilized ~68% N2",c:"PED"},
-  {t:"<b>ENG 1 MASTER</b> — ON, same monitoring",c:"PED"},
-  {t:"<b>ENG MODE SEL</b> — NORM after both stable",c:"PED"}]},
- {h:"AFTER START FLOW",s:[
-  {t:"<b>APU BLEED</b> — OFF",c:"OVHD AIR"},
-  {t:"<b>APU MASTER</b> — OFF",c:"OVHD APU"},
-  {t:"<b>ENG ANTI ICE / WING ANTI ICE</b> — as required",c:"OVHD"},
-  {t:"<b>GND SPLRS</b> — leave for taxi flow · <b>FLAPS</b> — set takeoff CONF (1+F)",c:"PED"},
-  {t:"<b>PITCH TRIM</b> — verify THS matches PERF TO",c:"PED"},
-  {t:"<b>RUDDER TRIM</b> — zero",c:"PED"},
-  {t:"<b>ECAM STATUS</b> — checked, no unexpected messages",c:"ECAM"}]}],
+ {h:"BEFORE PUSHBACK",k:"before",s:[
+  {id:"apu",t:"<b>APU</b> — MASTER ON → START (if not already running)",c:"OVHD APU"},
+  {id:"apu_bleed_on",t:"<b>APU BLEED</b> — ON",c:"OVHD AIR"},
+  {id:"ext_pwr",t:"<b>EXT PWR</b> — OFF, then disconnect via flyPad ground services",c:"OVHD ELEC"},
+  {id:"doors",t:"<b>flyPad → Doors</b> — all closed, jetway/stairs disconnected",c:"EFB"},
+  {id:"fuel_pumps",t:"<b>FUEL PUMPS</b> — all six ON",c:"OVHD FUEL"},
+  {id:"beacon",t:"<b>BEACON</b> — ON",c:"OVHD EXT LT"},
+  {id:"windows",t:"<b>Windows</b> — closed & locked",c:"SIDE"},
+  {id:"thr_park",t:"<b>THR LEVERS</b> — idle · <b>PARK BRK</b> — as required for push",c:"PED"}]},
+ {h:"ENGINE START (DURING / AFTER PUSH)",k:"start",s:[
+  {id:"xpdr",t:"<b>XPDR</b> — AUTO/ON",c:"PED"},
+  {id:"mode_ign",t:"<b>ENG MODE SEL</b> — IGN/START",c:"PED",n:"Packs shed automatically; ECAM swaps to the ENG page."},
+  {id:"eng2",t:"<b>ENG 2 MASTER</b> — ON. Monitor: N2 rise → fuel flow ~22% N2 → EGT light-off → stabilized ~68% N2 (FBW, ISA sea level)",c:"PED"},
+  {id:"eng1",t:"<b>ENG 1 MASTER</b> — ON, same monitoring",c:"PED"},
+  {id:"mode_norm",t:"<b>ENG MODE SEL</b> — NORM after both stable",c:"PED"}]},
+ {h:"AFTER START FLOW",k:"after",s:[
+  {id:"apu_bleed",t:"<b>APU BLEED</b> — OFF",c:"OVHD AIR"},
+  {id:"apu_master",t:"<b>APU MASTER</b> — OFF",c:"OVHD APU"},
+  {id:"anti_ice",t:"<b>ENG ANTI ICE / WING ANTI ICE</b> — as required",c:"OVHD"},
+  {id:"flaps",t:"<b>FLAPS</b> — set takeoff CONF (1+F)",c:"PED"},
+  {id:"pitch_trim",t:"<b>PITCH TRIM</b> — verify THS matches PERF TO",c:"PED"},
+  {id:"rudder_trim",t:"<b>RUDDER TRIM</b> — zero",c:"PED"},
+  {id:"ecam_status",t:"<b>ECAM STATUS</b> — checked, no unexpected messages",c:"ECAM"}]}],
 cl:{title:"BEFORE START — BELOW THE LINE  ·  THEN AFTER START",items:[
- {ch:"WINDOWS / DOORS",rsp:"CLOSED (BOTH)"},{ch:"BEACON",rsp:"ON"},{ch:"THR LEVERS",rsp:"IDLE"},{ch:"PARKING BRAKE",rsp:"AS RQRD"},
+ {id:"windows_doors",ch:"WINDOWS / DOORS",rsp:"CLOSED (BOTH)"},{id:"beacon",ch:"BEACON",rsp:"ON"},{id:"thr_levers",ch:"THR LEVERS",rsp:"IDLE"},{id:"park_brk",ch:"PARKING BRAKE",rsp:"AS RQRD"},
  {line:1},
- {ch:"ANTI ICE",rsp:"AS RQRD"},{ch:"ECAM STATUS",rsp:"CHECKED"},{ch:"PITCH TRIM",rsp:"___ SET"},{ch:"RUDDER TRIM",rsp:"ZERO"}]},
+ {id:"anti_ice",ch:"ANTI ICE",rsp:"AS RQRD"},{id:"ecam_status",ch:"ECAM STATUS",rsp:"CHECKED"},{id:"pitch_trim",ch:"PITCH TRIM",rsp:"___ SET"},{id:"rudder_trim",ch:"RUDDER TRIM",rsp:"ZERO"}]},
 rail:{rows:[["Push from","Gate B6, face south"],["Start order","ENG 2 → ENG 1"],["Stab N2","~68%"],["CONF","1+F"],["THS","UP0.0"]],note:"Two-engine taxi is fine on a sector this short; single-engine taxi-out is a fuel nicety, not a requirement."}},
 
 /* ============ 5 TAXI ============ */
-{id:"taxi",nav:"TAXI OUT",title:"TAXI TO THE RUNWAY",goal:"Brake check, flight controls, T.O CONFIG — the last chances to catch a misconfigured jet before it matters.",
+{id:"taxi",nav:"TAXI OUT",y:GY,title:"TAXI TO THE RUNWAY",goal:"Brake check, flight controls, T.O CONFIG — the last chances to catch a misconfigured jet before it matters.",
 batc:["<span class='say'>Request taxi</span> with Ground. Copy the full route — BATC issues real taxi routes with hold shorts: <span class='say'>runway 23L via B, F, hold short 23L</span>.","Read back hold-short instructions specifically. BATC listens for them (or auto-respond does it).","Approaching the hold: Ground hands you to <b>Tower</b>. Check in with position."],
 flows:[
- {h:"ROLLING",s:[
-  {t:"<b>NOSE LT</b> — TAXI · <b>RWY TURN OFF</b> — ON",c:"OVHD EXT LT"},
-  {t:"<b>PARK BRK</b> — OFF, thrust just above idle to break away",c:"PED"},
-  {t:"<b>Brake check</b> — gentle pedal application, verify decel + no residual pressure",c:"PED"},
-  {t:"<b>Steering check</b> — small tiller/rudder inputs both directions",c:"PED"}]},
- {h:"DURING TAXI",s:[
-  {t:"<b>Flight controls</b> — full & free: stick full deflection all corners, full rudder both ways, watch F/CTL page",c:"ECAM"},
-  {t:"<b>AUTO BRK</b> — MAX",c:"ECAM PANEL"},
-  {t:"<b>T.O CONFIG</b> — press, verify TO CONFIG NORMAL",c:"ECAM PANEL"},
-  {t:"<b>Cabin</b> — ready signal (flyPad or assume after boarding chime)",c:"EFB"},
-  {t:"<b>Takeoff memo</b> — all green, no blue lines remaining",c:"ECAM"}]},
- {h:"APPROACHING HOLD SHORT",s:[
-  {t:"<b>TCAS</b> — TA/RA, XPDR AUTO",c:"PED"},
-  {t:"<b>PACKS</b> — as required (packs-on takeoff is fine with FLEX)",c:"OVHD AIR"},
-  {t:"<b>ENG MODE SEL</b> — as required (IGN if precip/standing water)",c:"PED"}]}],
+ {h:"ROLLING",k:"rolling",s:[
+  {id:"lights",t:"<b>NOSE LT</b> — TAXI · <b>RWY TURN OFF</b> — ON",c:"OVHD EXT LT"},
+  {id:"park_brk",t:"<b>PARK BRK</b> — OFF, thrust just above idle to break away",c:"PED"},
+  {id:"brake_check",t:"<b>Brake check</b> — gentle pedal application, verify decel + no residual pressure",c:"PED"},
+  {id:"steering",t:"<b>Steering check</b> — small tiller/rudder inputs both directions",c:"PED"}]},
+ {h:"DURING TAXI",k:"during",s:[
+  {id:"flt_ctl",t:"<b>Flight controls</b> — full & free: stick full deflection all corners, full rudder both ways, watch F/CTL page",c:"ECAM"},
+  {id:"spoilers",t:"<b>GND SPLRS</b> — ARM",c:"PED",n:"Armed before T.O CONFIG so the takeoff memo shows SPLRS ARM; the initial-climb flow disarms them."},
+  {id:"auto_brk",t:"<b>AUTO BRK</b> — MAX",c:"ECAM PANEL"},
+  {id:"to_config",t:"<b>T.O CONFIG</b> — press, verify TO CONFIG NORMAL",c:"ECAM PANEL"},
+  {id:"cabin",t:"<b>Cabin</b> — ready signal (flyPad or assume after boarding chime)",c:"EFB"},
+  {id:"to_memo",t:"<b>Takeoff memo</b> — all green, no blue lines remaining",c:"ECAM"}]},
+ {h:"APPROACHING HOLD SHORT",k:"hold",s:[
+  {id:"tcas",t:"<b>TCAS</b> — TA/RA, XPDR AUTO",c:"PED"},
+  {id:"packs",t:"<b>PACKS</b> — as required (packs-on takeoff is fine with FLEX)",c:"OVHD AIR"},
+  {id:"eng_mode",t:"<b>ENG MODE SEL</b> — as required (IGN if precip/standing water)",c:"PED"}]}],
 cl:{title:"BEFORE TAKEOFF C/L",items:[
- {ch:"FLT CTL",rsp:"CHECKED (BOTH)"},{ch:"FLT INST",rsp:"CHECKED (BOTH)"},{ch:"BRIEFING",rsp:"CONFIRMED"},{ch:"FLAP SETTING",rsp:"CONF ___ (BOTH)"},{ch:"V1 / VR / V2 / FLX",rsp:"___ SET (BOTH)"},{ch:"ECAM MEMO",rsp:"TO NO BLUE"},
+ {id:"flt_ctl",ch:"FLT CTL",rsp:"CHECKED (BOTH)"},{id:"flt_inst",ch:"FLT INST",rsp:"CHECKED (BOTH)"},{id:"briefing",ch:"BRIEFING",rsp:"CONFIRMED"},{id:"flaps",ch:"FLAP SETTING",rsp:"CONF ___ (BOTH)"},{id:"vspeeds",ch:"V1 / VR / V2 / FLX",rsp:"___ SET (BOTH)"},{id:"ecam_memo",ch:"ECAM MEMO",rsp:"TO NO BLUE"},
  {line:1},
- {ch:"TO RUNWAY",rsp:"CONFIRMED"},{ch:"CABIN CREW",rsp:"ADVISED"},{ch:"TCAS",rsp:"TA/RA"},{ch:"ENG MODE SEL",rsp:"AS RQRD"},{ch:"PACKS",rsp:"AS RQRD"}]},
+ {id:"to_rwy",ch:"TO RUNWAY",rsp:"CONFIRMED"},{id:"cabin_crew",ch:"CABIN CREW",rsp:"ADVISED"},{id:"tcas",ch:"TCAS",rsp:"TA/RA"},{id:"eng_mode",ch:"ENG MODE SEL",rsp:"AS RQRD"},{id:"packs",ch:"PACKS",rsp:"AS RQRD"}]},
 rail:{rows:[["Taxi route","B · F, hold short 23L"],["Auto brake","MAX"],["TO CONFIG","NORMAL"],["Tower","119.3"]],note:"Above-the-line items during taxi; below the line only once number one at the hold. That split exists so you're not heads-down rolling through an intersection."}},
 
 /* ============ 6 TAKEOFF ============ */
-{id:"tkof",nav:"TAKEOFF",title:"TAKEOFF",goal:"FLEX detent, verify the FMA, rotate at VR. The FMA callout discipline (MAN FLX · SRS · RWY) is what catches a wrong-mode takeoff before 80 knots.",
+{id:"tkof",nav:"TAKEOFF",y:106,title:"TAKEOFF",goal:"FLEX detent, verify the FMA, rotate at VR. The FMA callout discipline (MAN FLX · SRS · RWY) is what catches a wrong-mode takeoff before 80 knots.",
 batc:["Tower: <span class='say'>line up and wait runway 23L</span> or straight <span class='say'>cleared for takeoff 23L, wind 240 at 8</span>.","Airborne, Tower hands off: <span class='say'>contact departure</span>. Check in with altitude climbing to your initial."],
 flows:[
- {h:"LINING UP",s:[
-  {t:"<b>STROBES</b> — ON · <b>LANDING LTS</b> — ON · <b>NOSE LT</b> — TO",c:"OVHD EXT LT"},
-  {t:"<b>Runway heading vs PFD/ND</b> — verify correct runway",c:"PFD"},
-  {t:"<b>CHRONO</b> — start",c:"GLARE"}]},
- {h:"TAKEOFF ROLL",s:[
-  {t:"<b>Thrust</b> — levers to ~50% N1, stabilize, then smoothly to <b>FLX/MCT detent</b>",c:"PED"},
-  {t:"<b>FMA verify</b> — MAN FLX 62 · SRS · RWY, A/THR armed (blue)",c:"PFD",n:"Say it out loud. It works."},
-  {t:"<b>100 kt</b> — crosscheck both PFDs",c:"PFD"},
-  {t:"<b>V1</b> — hands off thrust levers · <b>VR</b> — rotate ~3°/s to 15° SRS bar",c:"PFD"}]},
- {h:"INITIAL CLIMB",s:[
-  {t:"<b>Positive climb</b> — GEAR UP",c:"PANEL"},
-  {t:"<b>AP 1</b> — ON when ready (min 100 ft AGL)",c:"FCU"},
-  {t:"<b>THR RED (typ 1 500 ft AGL)</b> — LVR CLB flashes → levers to CLB detent",c:"PED"},
-  {t:"<b>F speed</b> — FLAPS 1 · <b>S speed</b> — FLAPS 0",c:"PED"},
-  {t:"<b>Packs</b> — ON if they were off · <b>GND SPLRS</b> — disarm",c:"OVHD/PED"}]}],
+ {h:"LINING UP",k:"lineup",s:[
+  {id:"lights",t:"<b>STROBES</b> — ON · <b>LANDING LTS</b> — ON · <b>NOSE LT</b> — TO",c:"OVHD EXT LT"},
+  {id:"rwy_check",t:"<b>Runway heading vs PFD/ND</b> — verify correct runway",c:"PFD"},
+  {id:"chrono",t:"<b>CHRONO</b> — start",c:"GLARE"}]},
+ {h:"TAKEOFF ROLL",k:"roll",s:[
+  {id:"thrust",t:"<b>Thrust</b> — levers to ~50% N1, stabilize, then smoothly to <b>FLX/MCT detent</b>",c:"PED"},
+  {id:"fma",t:"<b>FMA verify</b> — MAN FLX 62 · SRS · RWY, A/THR armed (blue)",c:"PFD",n:"Say it out loud. It works."},
+  {id:"kt100",t:"<b>100 kt</b> — crosscheck both PFDs",c:"PFD"},
+  {id:"v1_vr",t:"<b>V1</b> — hands off thrust levers · <b>VR</b> — rotate ~3°/s to 15° SRS bar",c:"PFD"}]},
+ {h:"INITIAL CLIMB",k:"climb",s:[
+  {id:"gear",t:"<b>Positive climb</b> — GEAR UP",c:"PANEL"},
+  {id:"ap",t:"<b>AP 1</b> — ON when ready (min 100 ft AGL)",c:"FCU"},
+  {id:"thr_red",t:"<b>THR RED (typ 1 500 ft AGL)</b> — LVR CLB flashes → levers to CLB detent",c:"PED"},
+  {id:"flaps",t:"<b>F speed</b> — FLAPS 1 · <b>S speed</b> — FLAPS 0",c:"PED"},
+  {id:"packs",t:"<b>Packs</b> — ON if they were off · <b>GND SPLRS</b> — disarm",c:"OVHD/PED"}]}],
 cl:{title:"NO CHECKLIST DURING THE ROLL",none:"Takeoff is flows and FMA callouts only. The AFTER T/O / CLIMB checklist comes once clean — next phase."},
 rail:{rows:[["Runway","23L"],["FLEX","62°C"],["V1 · VR · V2","133 · 135 · 138"],["Initial ALT","5 000"],["THR RED / ACC","1 570 / 1 570"]],note:"MAN FLX 62 on the FMA must match the PERF TO page. If it says TOGA and you planned FLEX, you're in the wrong detent."}},
 
 /* ============ 7 CLIMB ============ */
-{id:"clb",nav:"CLIMB",title:"CLIMB TO CRUISE",goal:"Managed climb does the work; you handle the transition altitude, the 10 000 ft flow, and BATC's stepped climbs.",
+{id:"clb",nav:"CLIMB",y:62,title:"CLIMB TO CRUISE",goal:"Managed climb does the work; you handle the transition altitude, the 10 000 ft flow, and BATC's stepped climbs.",
 batc:["Departure gives stepped climbs: <span class='say'>climb and maintain FL230</span> — dial FCU ALT, push for managed climb each time.","Handoffs to Center as you climb. BATC auto-tunes frequencies if enabled, otherwise swap COM1 yourself.","Eventually: <span class='say'>climb and maintain FL320</span> — your cruise level."],
 flows:[
- {h:"PASSING 10 000 FT",s:[
-  {t:"<b>LANDING LTS</b> — OFF",c:"OVHD EXT LT"},
-  {t:"<b>SEAT BELTS</b> — as required",c:"OVHD"},
-  {t:"<b>ND range</b> — out to 40–80 nm",c:"FCU"}]},
- {h:"TRANSITION ALTITUDE (US: 18 000)",s:[
-  {t:"<b>Baro ref</b> — STD both sides + ISIS (push knob)",c:"FCU/ISIS"},
-  {t:"<b>Altimeter crosscheck</b> — both PFDs read FLxxx",c:"PFD"}]},
- {h:"CONTINUOUS",s:[
-  {t:"<b>FMA</b> — THR CLB · CLB · NAV — managed all the way",c:"PFD"},
-  {t:"<b>Speed constraints</b> — 250/10 000 respected automatically in managed; watch it if you go selected",c:"PFD"},
-  {t:"<b>ECAM memo</b> — clean",c:"ECAM"}]}],
+ {h:"PASSING 10 000 FT",k:"10k",s:[
+  {id:"lights",t:"<b>LANDING LTS</b> — OFF",c:"OVHD EXT LT"},
+  {id:"seat_belts",t:"<b>SEAT BELTS</b> — as required",c:"OVHD"},
+  {id:"nd",t:"<b>ND range</b> — out to 40–80 nm",c:"FCU"}]},
+ {h:"TRANSITION ALTITUDE (US: 18 000)",k:"trans",s:[
+  {id:"baro",t:"<b>Baro ref</b> — STD both sides + ISIS (push knob)",c:"FCU/ISIS"},
+  {id:"alt_xcheck",t:"<b>Altimeter crosscheck</b> — both PFDs read FLxxx",c:"PFD"}]},
+ {h:"CONTINUOUS",k:"cont",s:[
+  {id:"fma",t:"<b>FMA</b> — THR CLB · CLB · NAV — managed all the way",c:"PFD"},
+  {id:"speed",t:"<b>Speed constraints</b> — 250/10 000 respected automatically in managed; watch it if you go selected",c:"PFD"},
+  {id:"ecam",t:"<b>ECAM memo</b> — clean",c:"ECAM"}]}],
 cl:{title:"AFTER T/O / CLIMB C/L",items:[
- {ch:"LDG GEAR",rsp:"UP"},{ch:"FLAPS",rsp:"RETRACTED"},{ch:"PACKS",rsp:"ON"},
+ {id:"gear",ch:"LDG GEAR",rsp:"UP"},{id:"flaps",ch:"FLAPS",rsp:"RETRACTED"},{id:"packs",ch:"PACKS",rsp:"ON"},
  {line:1},
- {ch:"BARO REF",rsp:"STD SET (BOTH)"}]},
+ {id:"baro",ch:"BARO REF",rsp:"STD SET (BOTH)"}]},
 rail:{rows:[["Trans ALT","18 000"],["Cruise","FL320"],["Time to TOC","~18 min"],["Center","Atlanta 134.6"]],note:"Above-the-line items right after cleanup; the BARO REF line waits for FL180. Short sector — you'll barely level off before thinking about descent."}},
 /* ============ 8 CRUISE ============ */
-{id:"crz",nav:"CRUISE",title:"CRUISE",goal:"Monitor, fuel-check, and front-load the arrival: the descent starts being flown well twenty minutes before TOD, in the PERF APPR page.",
+{id:"crz",nav:"CRUISE",y:30,title:"CRUISE",goal:"Monitor, fuel-check, and front-load the arrival: the descent starts being flown well twenty minutes before TOD, in the PERF APPR page.",
 batc:["Center handoffs continue. Enable <b>auto-respond</b> here if you're stepping away from the radio mindset.","~150 nm out, pull the <b>destination ATIS</b> through BATC — the arrival runway drives your STAR, approach and perf figures.","Expect a 'descend via' or stepped descent later; nothing to request yet."],
 flows:[
- {h:"HOUSEKEEPING",s:[
-  {t:"<b>Fuel check</b> — ECAM FUEL page + F-PLN predictions vs OFP howgozit; FOB + used ≈ block",c:"ECAM/MCDU"},
-  {t:"<b>ECAM SD pages</b> — cycle through ENG, BLEED, ELEC — a 30-second scan",c:"ECAM"},
-  {t:"<b>Step climb</b> — if OFP planned one and Center approves, FCU up + push",c:"FCU"}]},
- {h:"ARRIVAL SETUP (BEFORE TOD)",s:[
-  {t:"<b>Dest ATIS</b> — copy runway, QNH, wind",c:"BATC"},
-  {t:"<b>F-PLN → LAT REV at destination</b> — insert STAR + approach + transition for the ATIS runway",c:"MCDU"},
-  {t:"<b>Clear discontinuities</b> after arrival insertion",c:"MCDU"},
-  {t:"<b>PERF APPR</b> — QNH, temp, wind, MDA/DH (e.g. ILS CAT1: DH 200), LDG CONF FULL",c:"MCDU"},
-  {t:"<b>PERF DES</b> — managed speed, or set if ATC assigns",c:"MCDU"},
-  {t:"<b>flyPad → Performance</b> — landing distance check for runway/weight",c:"EFB"},
-  {t:"<b>Arrival brief</b> — STAR, approach chart, minimums, missed approach, taxi-in expectation",c:"BRIEF"},
-  {t:"<b>RAD NAV</b> — verify approach ILS autotuned",c:"MCDU"}]}],
+ {h:"HOUSEKEEPING",k:"house",s:[
+  {id:"fuel",t:"<b>Fuel check</b> — ECAM FUEL page + F-PLN predictions vs OFP howgozit; FOB + used ≈ block",c:"ECAM/MCDU"},
+  {id:"sd_pages",t:"<b>ECAM SD pages</b> — cycle through ENG, BLEED, ELEC — a 30-second scan",c:"ECAM"},
+  {id:"step_climb",t:"<b>Step climb</b> — if OFP planned one and Center approves, FCU up + push",c:"FCU"}]},
+ {h:"ARRIVAL SETUP (BEFORE TOD)",k:"arrival",s:[
+  {id:"atis",t:"<b>Dest ATIS</b> — copy runway, QNH, wind",c:"BATC"},
+  {id:"star",t:"<b>F-PLN → LAT REV at destination</b> — insert STAR + approach + transition for the ATIS runway",c:"MCDU"},
+  {id:"discont",t:"<b>Clear discontinuities</b> after arrival insertion",c:"MCDU"},
+  {id:"perf_appr",t:"<b>PERF APPR</b> — QNH, temp, wind, MDA/DH (e.g. ILS CAT1: DH 200), LDG CONF FULL",c:"MCDU"},
+  {id:"perf_des",t:"<b>PERF DES</b> — managed speed, or set if ATC assigns",c:"MCDU"},
+  {id:"ldg_perf",t:"<b>flyPad → Performance</b> — landing distance check for runway/weight",c:"EFB"},
+  {id:"brief",t:"<b>Arrival brief</b> — STAR, approach chart, minimums, missed approach, taxi-in expectation",c:"BRIEF"},
+  {id:"radnav",t:"<b>RAD NAV</b> — verify approach ILS autotuned",c:"MCDU"}]}],
 cl:null,
 rail:{rows:[["Level","FL320 · M .78"],["Sector fuel burn","~2 650 kg"],["Dest ATIS","INFO K · ILS 27R"],["QNH KATL","30.05"],["DH","200 ft (CAT I)"],["LDG CONF","FULL"],["TOD","~95 nm out"]],note:"On a 356 nm leg, cruise is ~15 minutes. Do the arrival setup the moment you level off or TOD will arrive mid-brief."}},
 
 /* ============ 9 DESCENT ============ */
-{id:"des",nav:"DESCENT",title:"DESCENT",goal:"Set the cleared altitude, push for managed DES at TOD, and keep the jet on the computed path with the VDEV donut. QNH back at FL180.",
+{id:"des",nav:"DESCENT",y:62,title:"DESCENT",goal:"Set the cleared altitude, push for managed DES at TOD, and keep the jet on the computed path with the VDEV donut. QNH back at FL180.",
 batc:["Center: <span class='say'>descend and maintain FL240</span> or <span class='say'>descend via the OZZZI1 arrival</span> — descend-via means the STAR's own altitudes apply; managed DES flies them.","Altimeter comes with the lower clearances: <span class='say'>Atlanta altimeter 30.05</span>.","Handoff to <b>Approach</b> somewhere in the arrival."],
 flows:[
- {h:"AT / NEAR TOD",s:[
-  {t:"<b>FCU ALT</b> — set cleared altitude",c:"FCU"},
-  {t:"<b>ALT knob PUSH</b> — managed DES; FMA: THR IDLE · DES · NAV",c:"FCU"},
-  {t:"<b>VDEV</b> — monitor the donut; speedbrake if high, expect A/THR to add thrust if low",c:"PFD"}]},
- {h:"TRANSITION LEVEL (FL180)",s:[
-  {t:"<b>Baro ref</b> — QNH both sides + ISIS",c:"FCU/ISIS"},
-  {t:"<b>Altimeter crosscheck</b>",c:"PFD"}]},
- {h:"PASSING 10 000 FT",s:[
-  {t:"<b>LANDING LTS</b> — ON",c:"OVHD EXT LT"},
-  {t:"<b>SEAT BELTS</b> — ON",c:"OVHD"},
-  {t:"<b>Speed</b> — 250 below 10 000 (managed handles it)",c:"PFD"},
-  {t:"<b>LDG ELEV</b> — auto, verify on ECAM CAB PRESS if curious",c:"ECAM"}]}],
+ {h:"AT / NEAR TOD",k:"tod",s:[
+  {id:"fcu_alt",t:"<b>FCU ALT</b> — set cleared altitude",c:"FCU"},
+  {id:"managed",t:"<b>ALT knob PUSH</b> — managed DES; FMA: THR IDLE · DES · NAV",c:"FCU"},
+  {id:"vdev",t:"<b>VDEV</b> — monitor the donut; speedbrake if high, expect A/THR to add thrust if low",c:"PFD"}]},
+ {h:"TRANSITION LEVEL (FL180)",k:"trans",s:[
+  {id:"baro",t:"<b>Baro ref</b> — QNH both sides + ISIS",c:"FCU/ISIS"},
+  {id:"alt_xcheck",t:"<b>Altimeter crosscheck</b>",c:"PFD"}]},
+ {h:"PASSING 10 000 FT",k:"10k",s:[
+  {id:"lights",t:"<b>LANDING LTS</b> — ON",c:"OVHD EXT LT"},
+  {id:"seat_belts",t:"<b>SEAT BELTS</b> — ON",c:"OVHD"},
+  {id:"speed",t:"<b>Speed</b> — 250 below 10 000 (managed handles it)",c:"PFD"},
+  {id:"ldg_elev",t:"<b>LDG ELEV</b> — auto, verify on ECAM CAB PRESS if curious",c:"ECAM"}]}],
 cl:{title:"APPROACH C/L (BY ~10 000 FT)",items:[
- {ch:"BRIEFING",rsp:"CONFIRMED"},{ch:"ECAM STATUS",rsp:"CHECKED"},{ch:"SEAT BELTS",rsp:"ON"},{ch:"BARO REF",rsp:"___ SET (BOTH)"},{ch:"MINIMUM",rsp:"___ SET (BOTH)"},{ch:"AUTO BRAKE",rsp:"AS RQRD"}]},
+ {id:"briefing",ch:"BRIEFING",rsp:"CONFIRMED"},{id:"ecam_status",ch:"ECAM STATUS",rsp:"CHECKED"},{id:"seat_belts",ch:"SEAT BELTS",rsp:"ON"},{id:"baro",ch:"BARO REF",rsp:"___ SET (BOTH)"},{id:"minimum",ch:"MINIMUM",rsp:"___ SET (BOTH)"},{id:"auto_brake",ch:"AUTO BRAKE",rsp:"AS RQRD"}]},
 rail:{rows:[["Cleared","Descend via OZZZI1"],["Trans LVL","FL180"],["QNH","30.05"],["Auto brake","LO"],["Approach freq","127.9"]],note:"Descend-via is the one BATC instruction people bust: it's a clearance to fly ALL the STAR's published altitudes, not just the last one on the FCU. Set the bottom altitude, keep DES managed."}},
 
 /* ============ 10 APPR ============ */
-{id:"appr",nav:"APPROACH",title:"APPROACH",goal:"Decelerate on schedule, capture the ILS, and configure by the numbers: 1 at green dot, 2 at S, gear at glide-alive, FULL by 2 000 ft. Stable by 1 000 or go around.",
+{id:"appr",nav:"APPROACH",y:92,title:"APPROACH",goal:"Decelerate on schedule, capture the ILS, and configure by the numbers: 1 at green dot, 2 at S, gear at glide-alive, FULL by 2 000 ft. Stable by 1 000 or go around.",
 batc:["Approach vectors or clears the approach: <span class='say'>turn left heading 300, maintain 3 000 until established, cleared ILS 27R</span>.","Speed assignments are common near a busy field: <span class='say'>maintain 180 until FAF</span> — selected speed, then back to managed.","Established, expect: <span class='say'>contact tower</span>."],
 flows:[
- {h:"SETUP & DECELERATION",s:[
-  {t:"<b>APPR phase</b> — auto-activates at decel point in managed; otherwise PERF APPR → ACTIVATE APPR",c:"MCDU"},
-  {t:"<b>LS pb</b> — ON both sides; verify ILS ident/course on PFD",c:"FCU"},
-  {t:"<b>Managed speed</b> — decelerating toward green dot",c:"PFD"}]},
- {h:"INTERCEPT",s:[
-  {t:"<b>Cleared approach → APPR pb</b> — FMA arms LOC + G/S (blue)",c:"FCU"},
-  {t:"<b>AP 2</b> — ON (both APs for autoland capability; one is fine for CAT I)",c:"FCU"},
-  {t:"<b>LOC* then G/S*</b> — capture, verify",c:"PFD"}]},
- {h:"CONFIGURATION SCHEDULE",s:[
-  {t:"<b>At green dot</b> — FLAPS 1",c:"PED"},
-  {t:"<b>At S speed</b> — FLAPS 2",c:"PED"},
-  {t:"<b>Glideslope alive / one dot</b> — GEAR DOWN",c:"PANEL"},
-  {t:"<b>GND SPLRS</b> — ARM · <b>AUTO BRK</b> — verify LO/MED",c:"PED/ECAM"},
-  {t:"<b>FLAPS 3 → FLAPS FULL</b> — by ~2 000 ft AGL",c:"PED"},
-  {t:"<b>NOSE LT</b> — TO · <b>RWY TURN OFF</b> — ON",c:"OVHD EXT LT"},
-  {t:"<b>LDG memo</b> — no blue: LDG GEAR DN · SIGNS ON · SPLRS ARM · FLAPS FULL",c:"ECAM"},
-  {t:"<b>Stable by 1 000 ft</b> — on path, on speed (VAPP), configured, or go around",c:"PFD"}]}],
+ {h:"SETUP & DECELERATION",k:"decel",s:[
+  {id:"appr_phase",t:"<b>APPR phase</b> — auto-activates at decel point in managed; otherwise PERF APPR → ACTIVATE APPR",c:"MCDU"},
+  {id:"ls",t:"<b>LS pb</b> — ON both sides; verify ILS ident/course on PFD",c:"FCU"},
+  {id:"speed",t:"<b>Managed speed</b> — decelerating toward green dot",c:"PFD"}]},
+ {h:"INTERCEPT",k:"intercept",s:[
+  {id:"appr_pb",t:"<b>Cleared approach → APPR pb</b> — FMA arms LOC + G/S (blue)",c:"FCU"},
+  {id:"ap2",t:"<b>AP 2</b> — ON (both APs for autoland capability; one is fine for CAT I)",c:"FCU"},
+  {id:"capture",t:"<b>LOC* then G/S*</b> — capture, verify",c:"PFD"}]},
+ {h:"CONFIGURATION SCHEDULE",k:"config",s:[
+  {id:"flaps1",t:"<b>At green dot</b> — FLAPS 1",c:"PED"},
+  {id:"flaps2",t:"<b>At S speed</b> — FLAPS 2",c:"PED"},
+  {id:"gear",t:"<b>Glideslope alive / one dot</b> — GEAR DOWN",c:"PANEL"},
+  {id:"spoilers",t:"<b>GND SPLRS</b> — ARM · <b>AUTO BRK</b> — verify LO/MED",c:"PED/ECAM"},
+  {id:"full",t:"<b>FLAPS 3 → FLAPS FULL</b> — by ~2 000 ft AGL",c:"PED"},
+  {id:"lights",t:"<b>NOSE LT</b> — TO · <b>RWY TURN OFF</b> — ON",c:"OVHD EXT LT"},
+  {id:"ldg_memo",t:"<b>LDG memo</b> — no blue: LDG GEAR DN · SIGNS ON · SPLRS ARM · FLAPS FULL",c:"ECAM"},
+  {id:"stable",t:"<b>Stable by 1 000 ft</b> — on path, on speed (VAPP), configured, or go around",c:"PFD"}]}],
 cl:{title:"LANDING C/L",items:[
- {ch:"CABIN CREW",rsp:"ADVISED"},{ch:"A/THR",rsp:"SPEED / OFF"},{ch:"ECAM MEMO",rsp:"LDG NO BLUE"}]},
+ {id:"cabin_crew",ch:"CABIN CREW",rsp:"ADVISED"},{id:"athr",ch:"A/THR",rsp:"SPEED / OFF"},{id:"ecam_memo",ch:"ECAM MEMO",rsp:"LDG NO BLUE"}]},
 rail:{rows:[["Approach","ILS 27R"],["ILS","110.5 / 274°"],["GS intercept","3 000 ft"],["VAPP","~136 kt"],["DH","200 ft"],["Missed","Climb 4 000, as published"]],note:"VAPP is computed on PERF APPR from VLS + wind correction — read yours off the page, don't memorize this one."}},
 
 /* ============ 11 LAND ============ */
-{id:"land",nav:"LANDING",title:"LANDING & ROLLOUT",goal:"Fly it to the flare, RETARD at 20, let the automation stop the jet, and be off the runway before Tower asks twice.",
+{id:"land",nav:"LANDING",y:GY,title:"LANDING & ROLLOUT",goal:"Fly it to the flare, RETARD at 20, let the automation stop the jet, and be off the runway before Tower asks twice.",
 batc:["Tower: <span class='say'>runway 27R, cleared to land, wind 260 at 6</span>.","After vacating: <span class='say'>contact ground</span> — BATC expects you clear of the runway edge before switching."],
 flows:[
- {h:"FINAL & TOUCHDOWN",s:[
-  {t:"<b>Minimums</b> — visual by DH or go around; AP off by DH for a manual CAT I landing",c:"PFD",n:"Or leave both APs in and let it autoland — legal on this jet, good practice occasionally."},
-  {t:"<b>~20 ft RETARD</b> — thrust levers to idle, slight flare",c:"PED"},
-  {t:"<b>Touchdown</b> — derotate gently, fly the nosewheel down",c:"STICK"},
-  {t:"<b>REV</b> — max reverse as required",c:"PED"},
-  {t:"<b>Spoilers + autobrake</b> — verify deployment / DECEL light",c:"ECAM"},
-  {t:"<b>70 kt</b> — reverse idle · brake manually to taxi speed, autobrake disarms with pedal input",c:"PED"}]},
- {h:"VACATING",s:[
-  {t:"<b>Clear the runway fully</b> — past the hold-short line",c:"—"},
-  {t:"<b>STROBES</b> — AUTO/OFF · <b>LANDING LTS</b> — OFF · <b>NOSE</b> — TAXI",c:"OVHD EXT LT"}]}],
+ {h:"FINAL & TOUCHDOWN",k:"final",s:[
+  {id:"minimums",t:"<b>Minimums</b> — visual by DH or go around; AP off by DH for a manual CAT I landing",c:"PFD",n:"Or leave both APs in and let it autoland — legal on this jet, good practice occasionally."},
+  {id:"retard",t:"<b>~20 ft RETARD</b> — thrust levers to idle, slight flare",c:"PED"},
+  {id:"touchdown",t:"<b>Touchdown</b> — derotate gently, fly the nosewheel down",c:"STICK"},
+  {id:"rev",t:"<b>REV</b> — max reverse as required",c:"PED"},
+  {id:"decel",t:"<b>Spoilers + autobrake</b> — verify deployment / DECEL light",c:"ECAM"},
+  {id:"kt70",t:"<b>70 kt</b> — reverse idle · brake manually to taxi speed, autobrake disarms with pedal input",c:"PED"}]},
+ {h:"VACATING",k:"vacate",s:[
+  {id:"clear",t:"<b>Clear the runway fully</b> — past the hold-short line",c:"—"},
+  {id:"lights",t:"<b>STROBES</b> — AUTO/OFF · <b>LANDING LTS</b> — OFF · <b>NOSE</b> — TAXI",c:"OVHD EXT LT"}]}],
 cl:{title:"NO CHECKLIST ON THE ROLL",none:"After-landing is a flow done clear of the runway — next phase. Nothing is read aloud until the jet is parked."},
 rail:{rows:[["Cleared to land","27R · 260/6"],["Autobrake","LO · DECEL green"],["Exit","B11, right"],["Ground","121.9"]],note:"If the DECEL light never comes on with autobrake LO on a long runway, that's normal — idle reverse and drag may exceed the LO decel target."}},
 
 /* ============ 12 PARK ============ */
-{id:"park",nav:"PARK & SECURE",title:"TAXI IN, PARKING & SECURING",goal:"After-landing flow while rolling, shutdown at the gate, then walk the overhead back down to batteries. Ends where you started: cold and dark.",
+{id:"park",nav:"PARK & SECURE",y:GY,title:"TAXI IN, PARKING & SECURING",goal:"After-landing flow while rolling, shutdown at the gate, then walk the overhead back down to batteries. Ends where you started: cold and dark.",
 batc:["Ground: <span class='say'>taxi to gate via E, B</span> — copy and comply; BATC traffic is still live around you.","At the gate, you're done with BATC — end the session once shut down."],
 flows:[
- {h:"AFTER LANDING FLOW (TAXIING IN)",s:[
-  {t:"<b>GND SPLRS</b> — DISARM",c:"PED"},
-  {t:"<b>FLAPS</b> — 0",c:"PED"},
-  {t:"<b>APU</b> — MASTER ON → START",c:"OVHD APU"},
-  {t:"<b>WX RADAR</b> — OFF · <b>PWS</b> — OFF",c:"PED"},
-  {t:"<b>TCAS</b> — STBY",c:"PED"},
-  {t:"<b>ENG MODE SEL</b> — NORM · anti-ice as required",c:"PED/OVHD"}]},
- {h:"AT THE GATE — SHUTDOWN",s:[
-  {t:"<b>PARK BRK</b> — ON (or chocks via flyPad, park brake off)",c:"PED"},
-  {t:"<b>APU BLEED</b> — ON",c:"OVHD AIR"},
-  {t:"<b>ENG 1 + 2 MASTERS</b> — OFF (after ~2 min cooldown at idle)",c:"PED"},
-  {t:"<b>BEACON</b> — OFF once engines spool down",c:"OVHD EXT LT"},
-  {t:"<b>SEAT BELTS</b> — OFF · <b>FUEL PUMPS</b> — OFF",c:"OVHD"},
-  {t:"<b>flyPad</b> — doors open, deboard, ext pwr on if staying powered",c:"EFB"}]},
- {h:"SECURING (BACK TO COLD & DARK)",s:[
-  {t:"<b>ADIRS 1, 2, 3</b> — OFF",c:"OVHD ADIRS"},
-  {t:"<b>OXYGEN CREW SUPPLY</b> — OFF",c:"OVHD"},
-  {t:"<b>APU BLEED</b> — OFF · <b>APU MASTER</b> — OFF",c:"OVHD"},
-  {t:"<b>EMER EXIT LT</b> — OFF · <b>SIGNS</b> — OFF",c:"OVHD"},
-  {t:"<b>EXT LTS</b> — all OFF",c:"OVHD EXT LT"},
-  {t:"<b>BAT 1 + 2</b> — OFF. Dark cockpit.",c:"OVHD ELEC"}]}],
+ {h:"AFTER LANDING FLOW (TAXIING IN)",k:"after",s:[
+  {id:"spoilers",t:"<b>GND SPLRS</b> — DISARM",c:"PED"},
+  {id:"flaps",t:"<b>FLAPS</b> — 0",c:"PED"},
+  {id:"apu",t:"<b>APU</b> — MASTER ON → START",c:"OVHD APU"},
+  {id:"wx",t:"<b>WX RADAR</b> — OFF · <b>PWS</b> — OFF",c:"PED"},
+  {id:"tcas",t:"<b>TCAS</b> — STBY",c:"PED"},
+  {id:"eng_mode",t:"<b>ENG MODE SEL</b> — NORM · anti-ice as required",c:"PED/OVHD"}]},
+ {h:"AT THE GATE — SHUTDOWN",k:"shutdown",s:[
+  {id:"park_brk",t:"<b>PARK BRK</b> — ON (or chocks via flyPad, park brake off)",c:"PED"},
+  {id:"apu_bleed",t:"<b>APU BLEED</b> — ON",c:"OVHD AIR"},
+  {id:"masters",t:"<b>ENG 1 + 2 MASTERS</b> — OFF (after ~2 min cooldown at idle)",c:"PED"},
+  {id:"beacon",t:"<b>BEACON</b> — OFF once engines spool down",c:"OVHD EXT LT"},
+  {id:"signs_pumps",t:"<b>SEAT BELTS</b> — OFF · <b>FUEL PUMPS</b> — OFF",c:"OVHD"},
+  {id:"flypad",t:"<b>flyPad</b> — doors open, deboard, ext pwr on if staying powered",c:"EFB"}]},
+ {h:"SECURING (BACK TO COLD & DARK)",k:"secure",s:[
+  {id:"adirs",t:"<b>ADIRS 1, 2, 3</b> — OFF",c:"OVHD ADIRS"},
+  {id:"oxygen",t:"<b>OXYGEN CREW SUPPLY</b> — OFF",c:"OVHD"},
+  {id:"apu",t:"<b>APU BLEED</b> — OFF · <b>APU MASTER</b> — OFF",c:"OVHD"},
+  {id:"emer_exit",t:"<b>EMER EXIT LT</b> — OFF · <b>SIGNS</b> — OFF",c:"OVHD"},
+  {id:"ext_lts",t:"<b>EXT LTS</b> — all OFF",c:"OVHD EXT LT"},
+  {id:"bat",t:"<b>BAT 1 + 2</b> — OFF. Dark cockpit.",c:"OVHD ELEC"}]}],
 cl:{title:"PARKING C/L  ·  THEN SECURING C/L",items:[
- {ch:"APU BLEED",rsp:"ON"},{ch:"ENGINES",rsp:"OFF"},{ch:"SEAT BELTS",rsp:"OFF"},{ch:"EXT LT",rsp:"AS RQRD"},{ch:"FUEL PUMPS",rsp:"OFF"},{ch:"PARK BRK / CHOCKS",rsp:"AS RQRD"},
+ {id:"apu_bleed",ch:"APU BLEED",rsp:"ON"},{id:"engines",ch:"ENGINES",rsp:"OFF"},{id:"seat_belts",ch:"SEAT BELTS",rsp:"OFF"},{id:"ext_lt",ch:"EXT LT",rsp:"AS RQRD"},{id:"fuel_pumps",ch:"FUEL PUMPS",rsp:"OFF"},{id:"park_brk",ch:"PARK BRK / CHOCKS",rsp:"AS RQRD"},
  {line:1},
- {ch:"ADIRS",rsp:"OFF"},{ch:"OXYGEN",rsp:"OFF"},{ch:"APU BLEED",rsp:"OFF"},{ch:"EMER EXIT LT",rsp:"OFF"},{ch:"SIGNS",rsp:"OFF"},{ch:"APU / BAT",rsp:"OFF"}]},
+ {id:"adirs",ch:"ADIRS",rsp:"OFF"},{id:"oxygen",ch:"OXYGEN",rsp:"OFF"},{id:"apu_bleed_off",ch:"APU BLEED",rsp:"OFF"},{id:"emer_exit",ch:"EMER EXIT LT",rsp:"OFF"},{id:"signs",ch:"SIGNS",rsp:"OFF"},{id:"apu_bat",ch:"APU / BAT",rsp:"OFF"}]},
 rail:{rows:[["Gate","T7 via E, B"],["Block time","1h02"],["Fuel remaining","~2 700 kg"],["Burn vs plan","+50 kg"]],note:"Compare arrival fuel against the OFP's planned remaining. Consistently landing heavy means your CI or taxi assumptions are off — tune the SimBrief profile."}}
 ];
-const state={checks:new Set(),cur:0,tab:"flow"};
-const GY=118,PROFY=[GY,GY,GY,GY,GY,GY,106,62,30,62,92,GY,GY];
+/* Progress, cue links and rules all address steps by these IDs, so a
+   duplicate would silently merge two steps. */
+const STEP_IDS=new Set();
+function claim(st,key){
+  if(STEP_IDS.has(key))console.error("Duplicate step id",key);
+  STEP_IDS.add(key);st.key=key;
+}
+D.forEach(p=>{
+  (p.flows||[]).forEach(sec=>sec.s.forEach(st=>claim(st,`${p.id}.${sec.k}.${st.id}`)));
+  if(p.cl&&p.cl.items)p.cl.items.forEach(it=>{if(!it.line)claim(it,`${p.id}.cl.${it.id}`)});
+});
+const state={checks:new Set(),cur:0,tab:"flow",ofp:null,bridge:{connected:false,sources:{sim:false,mcdu:false,ofp:false}}};
 const $=s=>document.querySelector(s);
-const SKEY="a32nx-companion.v1";
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const SKEY="a32nx-companion.v2";
 
-/* Storage can throw in private mode or with cookies blocked — a broken save
-   must never take the page down with it. */
+/* Storage can throw in private mode or with cookies blocked; the page keeps running with in-memory progress. */
+try{localStorage.removeItem("a32nx-companion.v1")}catch(e){}
 function save(){
   try{localStorage.setItem(SKEY,JSON.stringify({checks:[...state.checks],cur:state.cur,tab:state.tab}))}
   catch(e){/* progress stays in-memory for this session */}
@@ -465,24 +485,46 @@ function load(){
   if(!raw)return;
   try{
     const s=JSON.parse(raw);
-    if(Array.isArray(s.checks))state.checks=new Set(s.checks);
+    if(Array.isArray(s.checks))state.checks=new Set(s.checks.filter(k=>STEP_IDS.has(k)));
     if(Number.isInteger(s.cur)&&s.cur>=0&&s.cur<D.length)state.cur=s.cur;
     if(s.tab==="cl"&&D[state.cur].cl)state.tab="cl";
   }catch(e){/* corrupt payload — start a fresh flight */}
 }
 
-function key(pi,kind,a,b){return pi+"-"+kind+"-"+a+(b!==undefined?"-"+b:"")}
+function phaseItems(p){
+  const flow=(p.flows||[]).flatMap(sec=>sec.s);
+  const cl=p.cl&&p.cl.items?p.cl.items.filter(it=>!it.line):[];
+  return flow.concat(cl);
+}
 function phaseTotals(pi){
-  const p=D[pi];let t=0,c=0;
-  (p.flows||[]).forEach((sec,si)=>sec.s.forEach((_,i)=>{t++;if(state.checks.has(key(pi,"f",si,i)))c++;}));
-  if(p.cl&&p.cl.items)p.cl.items.forEach((it,i)=>{if(it.line)return;t++;if(state.checks.has(key(pi,"c",i)))c++;});
-  return[c,t];
+  const items=phaseItems(D[pi]);
+  return[items.filter(it=>state.checks.has(it.key)).length,items.length];
+}
+const wt=(v,o)=>Math.round(v).toLocaleString("en-US").replace(/,/g," ")+" "+o.units;
+const fl=n=>"FL"+String(n).padStart(3,"0");
+function ofpRows(pid,o){
+  const destFob=o.fixes.length?wt(o.fixes[o.fixes.length-1].planned_fob,o):"—";
+  const steps=o.step_climbs.length?o.step_climbs.map(([f,l])=>`${f} ${fl(l)}`).join(" · "):"none";
+  const r={
+    route:["Route",`${o.origin} → ${o.dest}`],altn:["ALTN",o.altn||"—"],ci:["CI",o.cost_index],
+    crz:["CRZ",fl(o.initial_fl)],steps:["Step climbs",steps],block:["Block fuel",wt(o.block_fuel,o)],
+    trip:["Trip fuel",wt(o.trip_fuel,o)],fres:["Final reserve",wt(o.final_reserve,o)],
+    zfw:["ZFW",wt(o.zfw,o)],tow:["TOW",wt(o.tow,o)],ldw:["LDW",wt(o.ldw,o)],
+    deprwy:["Dep RWY",o.origin_rwy||"—"],sid:["SID",o.sid||"—"],
+    arrrwy:["Arr RWY",o.dest_rwy||"—"],star:["STAR",o.star||"—"],destfob:["Plan FOB at dest",destFob]};
+  const by={
+    plan:["route","altn","ci","crz","block","trip","zfw","tow"],dark:["route","altn","deprwy"],
+    prep:["ci","crz","zfw","block","tow","deprwy"],clr:["deprwy","sid","crz"],
+    push:["block","deprwy"],taxi:["deprwy","sid","tow"],tkof:["deprwy","tow"],
+    clb:["crz","steps"],crz:["crz","steps","star","arrrwy","trip"],des:["star","arrrwy","ldw"],
+    appr:["arrrwy","ldw"],land:["arrrwy","destfob"],park:["destfob","fres","trip"]};
+  return by[pid].map(k=>r[k]);
 }
 function phaseDone(pi){const[c,t]=phaseTotals(pi);return t>0&&c===t}
 
 function drawProfile(){
   const n=D.length,x0=42,x1=898,svg=$("#profileSvg");
-  const pts=D.map((_,i)=>[x0+(x1-x0)*i/(n-1),PROFY[i]]);
+  const pts=D.map((p,i)=>[x0+(x1-x0)*i/(n-1),p.y]);
   let doneUpTo=-1;for(let i=0;i<n;i++){if(phaseDone(i))doneUpTo=i;else break;}
   let h=`<line class="pf-ground" x1="20" y1="${GY+9}" x2="920" y2="${GY+9}"/>`;
   h+=`<polyline class="pf-path" points="${pts.map(p=>p.join(",")).join(" ")}"/>`;
@@ -516,27 +558,25 @@ function renderPhase(){
     <button class="tab${state.tab==="flow"?" on":""}" data-tab="flow">FLOWS</button>
     <button class="tab${state.tab==="cl"?" on":""}" data-tab="cl" ${hasCl?"":"disabled"}>CHECKLIST</button></div><div class="pane">`;
   if(state.tab==="flow"){
-    h+=(p.flows||[]).map((sec,si)=>`<div class="flow-sec"><h3>${sec.h}</h3>${
-      sec.s.map((st,i)=>{const k=key(pi,"f",si,i),ck=state.checks.has(k);
-        return `<label class="step${ck?" ck":""}"><input type="checkbox" data-k="${k}" ${ck?"checked":""}>
+    h+=(p.flows||[]).map(sec=>`<div class="flow-sec"><h3>${sec.h}</h3>${
+      sec.s.map(st=>{const k=st.key,ck=state.checks.has(k);
+        return `<label class="step${ck?" ck":""}" data-k="${k}"><input type="checkbox" data-k="${k}" ${ck?"checked":""}>
           <span class="txt">${st.t}${st.c?`<span class="chip">${st.c}</span>`:""}${st.n?`<span class="note">${st.n}</span>`:""}</span></label>`;
       }).join("")}</div>`).join("");
   }else if(p.cl){
     h+=`<div class="cl-title"><span>${p.cl.title}</span></div>`;
     if(p.cl.none)h+=`<p class="cl-none">${p.cl.none}</p>`;
-    else h+=p.cl.items.map((it,i)=>{
+    else h+=p.cl.items.map(it=>{
       if(it.line)return `<div class="cl-line"></div>`;
-      const k=key(pi,"c",i),ck=state.checks.has(k);
+      const k=it.key,ck=state.checks.has(k);
       return `<div class="cl-item${ck?" ck":""}" data-k="${k}" role="checkbox" aria-checked="${ck}" tabindex="0">
         <span class="cl-ch">${it.ch}</span><span class="cl-dots"></span><span class="cl-rsp">${it.rsp}</span></div>`;
     }).join("");
   }
   h+=`</div>`;
   $("#phaseArt").innerHTML=h;
-  const rail=p.rail;
-  $("#railBox").innerHTML=rail?`<div class="rail"><div class="rail-tag">WORKED EXAMPLE</div><div class="rail-route">KRDU → KATL</div>
-    <table>${rail.rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</table>
-    <div class="rl-note">${rail.note}</div></div>`:"";
+  $("#railBox").innerHTML=renderRail(p);
+  const rb=$("#ofpRefresh");if(rb)rb.addEventListener("click",()=>send({type:"ofp_refresh"}));
   $("#phaseArt").querySelectorAll(".tab:not(:disabled)").forEach(b=>b.addEventListener("click",()=>{state.tab=b.dataset.tab;render()}));
   $("#phaseArt").querySelectorAll("input[data-k]").forEach(cb=>cb.addEventListener("change",()=>{toggle(cb.dataset.k)}));
   $("#phaseArt").querySelectorAll(".cl-item[data-k]").forEach(el=>{
@@ -548,9 +588,32 @@ function renderPhase(){
   $("#nextBtn").disabled=pi===D.length-1;
 }
 
+function renderRail(p){
+  const o=state.ofp;
+  if(o){
+    const when=new Date(o.generated_at).toISOString().slice(0,16).replace("T"," ")+"Z";
+    const rows=ofpRows(p.id,o);
+    const refresh=state.bridge.connected?`<button class="rail-refresh" id="ofpRefresh">↻ REFRESH OFP</button>`:"";
+    return `<div class="rail"><div class="rail-tag">YOUR OFP</div><div class="rail-route">${esc(o.origin)} → ${esc(o.dest)}</div>
+      <table>${rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join("")}</table>
+      <div class="rl-note">SimBrief OFP · generated ${esc(when)}${o.airac?` · AIRAC ${esc(o.airac)}`:""}</div>${refresh}</div>`;
+  }
+  const rail=p.rail;
+  return rail?`<div class="rail"><div class="rail-tag">EXAMPLE</div><div class="rail-route">KRDU → KATL</div>
+    <table>${rail.rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</table>
+    <div class="rl-note">${rail.note}</div></div>`:"";
+}
+function renderConn(){
+  const el=$("#connPill"),b=state.bridge;
+  el.hidden=!b.connected;
+  if(!b.connected)return;
+  const dot=(label,on)=>`<span class="${on?"on":""}">${label}</span>`;
+  el.innerHTML=dot("BRIDGE",true)+dot("SIM",b.sources.sim)+dot("OFP",b.sources.ofp)+dot("MCDU",b.sources.mcdu);
+}
+
 function toggle(k){state.checks.has(k)?state.checks.delete(k):state.checks.add(k);render()}
 function globalProg(){let c=0,t=0;D.forEach((_,i)=>{const[a,b]=phaseTotals(i);c+=a;t+=b});return t?Math.round(100*c/t):0}
-function render(){drawProfile();renderPhase();$("#progPct").textContent=globalProg()+"%";save()}
+function render(){drawProfile();renderPhase();renderConn();$("#progPct").textContent=globalProg()+"%";save()}
 
 $("#prevBtn").addEventListener("click",()=>{if(state.cur>0){state.cur--;state.tab="flow";render();window.scrollTo({top:0})}});
 $("#nextBtn").addEventListener("click",()=>{if(state.cur<D.length-1){state.cur++;state.tab="flow";render();window.scrollTo({top:0})}});
@@ -560,8 +623,29 @@ $("#resetBtn").addEventListener("click",()=>{
   try{localStorage.removeItem(SKEY)}catch(e){}
   render();window.scrollTo({top:0});
 });
+let ws=null,retryMs=2000;
+function send(msg){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(msg))}
+function onBridgeMessage(m){
+  if(m.type==="hello"){state.bridge.sources=m.sources}
+  else if(m.type==="sources"){state.bridge.sources={sim:m.sim,mcdu:m.mcdu,ofp:m.ofp}}
+  else if(m.type==="ofp"){state.ofp=m.data;state.bridge.sources.ofp=true}
+  else return;
+  render();
+}
+function connectBridge(){
+  /* Connect only when served over http(s); file:// runs standalone. */
+  if(!location.protocol.startsWith("http"))return;
+  ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws");
+  ws.addEventListener("open",()=>{retryMs=2000;state.bridge.connected=true;render()});
+  ws.addEventListener("message",e=>{try{onBridgeMessage(JSON.parse(e.data))}catch(err){console.error("bad bridge message",err)}});
+  ws.addEventListener("close",()=>{
+    state.bridge.connected=false;render();
+    setTimeout(connectBridge,retryMs);retryMs=Math.min(retryMs*2,30000);
+  });
+}
 load();
 render();
+connectBridge();
 </script>
 </body>
 </html>

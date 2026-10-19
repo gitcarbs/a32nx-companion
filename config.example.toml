@@ -1,0 +1,12 @@
+[simbrief]
+username = "navigraph-alias"     # or userid = "123456"
+
+[server]
+host = "0.0.0.0"
+port = 8765
+
+[sop]                            # operator-variable items, consumed by rules
+landing_lights_off_ft = 10000
+single_engine_taxi = false
+apu_start_before_push_min = 5
+units = "kg"                     # must match OFP units

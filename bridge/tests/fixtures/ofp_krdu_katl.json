@@ -1,0 +1,25 @@
+{
+  "fetch": {"userid": "1", "static_id": "", "status": "Success", "time": "0.01"},
+  "params": {"units": "kgs", "airac": "2610", "time_generated": "1760820000"},
+  "general": {
+    "route": "LILLS4 LILLS Q64 SPA OZZZI1",
+    "costindex": "15",
+    "initial_altitude": "32000",
+    "stepclimb_string": "KRDU/0320 SPA/0360",
+    "sid_ident": "LILLS4",
+    "star_ident": "OZZZI1"
+  },
+  "origin": {"icao_code": "KRDU", "plan_rwy": "23L", "pos_lat": "35.877639", "pos_long": "-78.787472"},
+  "destination": {"icao_code": "KATL", "plan_rwy": "27R", "pos_lat": "33.636719", "pos_long": "-84.428067"},
+  "alternate": [{"icao_code": "KBHM", "plan_rwy": "06"}],
+  "fuel": {"plan_ramp": "5400", "enroute_burn": "2650", "reserve": "1050", "alternate_burn": "1100"},
+  "weights": {"est_zfw": "55300", "est_tow": "60500", "est_ldw": "57850"},
+  "navlog": [
+    {"ident": "LILLS", "pos_lat": "35.700000", "pos_long": "-79.100000", "altitude_feet": "9000", "stage": "CLB", "fuel_plan_onboard": "4950", "is_sid_star": "1"},
+    {"ident": "TOC", "pos_lat": "35.500000", "pos_long": "-79.700000", "altitude_feet": "32000", "stage": "CLB", "fuel_plan_onboard": "4500", "is_sid_star": "0"},
+    {"ident": "SPA", "pos_lat": "35.033333", "pos_long": "-81.926667", "altitude_feet": "36000", "stage": "CRZ", "fuel_plan_onboard": "3700", "is_sid_star": "0"},
+    {"ident": "TOD", "pos_lat": "34.300000", "pos_long": "-83.200000", "altitude_feet": "36000", "stage": "CRZ", "fuel_plan_onboard": "3050", "is_sid_star": "0"},
+    {"ident": "OZZZI", "pos_lat": "33.900000", "pos_long": "-83.900000", "altitude_feet": "12000", "stage": "DSC", "fuel_plan_onboard": "2700", "is_sid_star": "1"},
+    {"ident": "KATL", "pos_lat": "33.636719", "pos_long": "-84.428067", "altitude_feet": "1026", "stage": "DSC", "fuel_plan_onboard": "2550", "is_sid_star": "0"}
+  ]
+}
