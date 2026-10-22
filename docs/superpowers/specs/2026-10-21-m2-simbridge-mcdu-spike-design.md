@@ -19,7 +19,8 @@ Read from `flybywiresim/simbridge` (`apps/server/src/interfaces/mcdu.gateway.ts`
 - Any client → aircraft: `requestUpdate` makes the aircraft resend the screen. `event:<side>:<BUTTON>` **presses that MCDU key in the sim**.
 - `print:{...}` frames are printer output; ignore.
 - Cell text uses inline markup: `{big} {small} {amber} {red} {green} {cyan} {white} {magenta} {yellow} {inop} {sp} {left} {right} {end}`.
-- `sendUpdate()` runs on every `setLine`/`setLabel`, so one page draw produces a burst of ~25 full frames.
+- `sendUpdate()` runs on every `setLine`/`setLabel` by default; `setTemplate` (a full page draw) suppresses those and sends one frame at the end. Page changes, scratchpad typing and live values still produce short bursts of frames.
+- Two cell styles: pages built with `FormatTemplate` put the whole 24-char row in cell 0 with `{sp}` for spaces; older pages (PERF) use separate left/right/center cells and `\xa0` for spaces.
 - No page identifier is sent. Titles are generic: INIT A is `INIT`, INIT B is `INIT FUEL PRED`, F-PLN's title row is `FROM … <flight number>`.
 - Requires flyPad EFB → Settings → SimBridge set to Auto or On.
 - Risk: this is the "legacy" MCDU; a source comment mentions an upcoming "MCDU split" that could change the format.
