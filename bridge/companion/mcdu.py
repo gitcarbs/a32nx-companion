@@ -206,11 +206,11 @@ def classify(screen: McduScreen) -> PageId | None:
         return PageId.PERF_APPR
     if words[:1] == ["FROM"]:
         return PageId.FPLN
-    if "INIT" in words:
-        if "FROM/TO" in labels:
-            return PageId.INIT_A
-        if "ZFW/ZFWCG" in labels:
-            return PageId.INIT_B
+    if "INIT" in words and "FROM/TO" in labels:
+        return PageId.INIT_A
+    # FBW stable titles the ZFW entry page FUEL PRED; newer builds title it INIT FUEL PRED.
+    if ("INIT" in words or "FUEL PRED" in title) and "ZFW/ZFWCG" in labels:
+        return PageId.INIT_B
     return None
 
 

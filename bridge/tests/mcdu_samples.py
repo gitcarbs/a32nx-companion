@@ -68,9 +68,9 @@ def init_a(ci: str = "25", crz: str = "FL350/-54°", sec: bool = False) -> Side:
     )
 
 
-def init_b(zfw: str = "55.3/27.1") -> Side:
+def init_b(zfw: str = "55.3/27.1", title: str = "INIT FUEL PRED") -> Side:
     return side(
-        fbw_line((5, "INIT FUEL PRED", "white")),
+        fbw_line((5, title, "white")),
         [
             row(fbw_line((0, "TAXI", "white"), (15, "ZFW/ZFWCG", "white"))),
             row(fbw_line((0, "0.2", "cyan"), (13, zfw, "cyan"))),

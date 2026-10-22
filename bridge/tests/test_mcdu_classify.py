@@ -34,6 +34,7 @@ def screen(side: Side) -> McduScreen:
         (init_a(), PageId.INIT_A),
         (init_a(sec=True), PageId.INIT_A),
         (init_b(), PageId.INIT_B),
+        (init_b(title="FUEL PRED"), PageId.INIT_B),
         (fpln(), PageId.FPLN),
         (perf_to(), PageId.PERF_TO),
         (perf_appr(), PageId.PERF_APPR),
