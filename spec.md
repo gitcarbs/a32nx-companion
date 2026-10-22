@@ -204,9 +204,9 @@ fbw_version = "stable-x.y.z"     # fill in when verified
 [vars.spoilers_armed] sim = "?"                     unit = "bool"   # find
 [vars.baro_std]    sim = "?"                        unit = "bool"   # find (FBW FCU)
 [vars.adirs_knob_1] sim = "?"                       unit = "enum"   # find
-[vars.ci]          sim = "?"                        unit = "number" # find, else MCDU screen
-[vars.crz_fl]      sim = "?"                        unit = "number" # find, else MCDU screen
-[vars.zfw_fmgc]    sim = "?"                        unit = "kg"     # find, else MCDU screen
+[vars.ci]          sim = "?"                        unit = "number" # find, else MCDU INIT A (M2: readable when displayed)
+[vars.crz_fl]      sim = "?"                        unit = "number" # find, else MCDU INIT A (M2: readable when displayed)
+[vars.zfw_fmgc]    sim = "?"                        unit = "kg"     # find, else MCDU INIT B/FUEL PRED (M2: readable when displayed)
 ```
 
 Unresolved (`?`) vars make their dependent rules inactive, logged once at startup. They do not crash the bridge.
@@ -231,6 +231,8 @@ Unresolved (`?`) vars make their dependent rules inactive, logged once at startu
 - Every bug found in flight gets a fixture trimmed from a recording and a test.
 
 ## 7. MCDU via SimBridge (gated)
+
+**M2 result (2026-10-21): GO.** See `docs/simbridge-mcdu.md`.
 
 SimBridge serves the remote MCDU on `:8380` and streams screen content over a WebSocket on the same port. The message format is **not documented**; it lives in the SimBridge/A32NX source.
 
@@ -381,7 +383,7 @@ Content per page lives in `bridge/companion/coach/{init_a,init_b,fpln,perf_to,pe
 |---|---|---|
 | **M0** | Page cleanup (§3 items 1–4) | Step IDs everywhere; v2 storage; no `PROFY`; BATC cards unchanged; spoilers-arm step present. Page works with no bridge. |
 | **M1** | Bridge skeleton + SimBrief | `python -m companion run` serves the page, `/ws` sends `hello` + `ofp`; rail shows the current OFP. Runs on macOS. |
-| **M2** | SimBridge MCDU spike | `docs/simbridge-mcdu.md` with schema + go/no-go. |
+| **M2** | SimBridge MCDU spike | `docs/simbridge-mcdu.md` with schema + go/no-go. **Done 2026-10-21: GO.** |
 | **M3** | SimConnect source, State, vars map, phase detector, recorder | Recorded JSONL of one full flight; phase detector produces the right sequence on replay; all `?` vars resolved or documented. |
 | **M4** | Rule engine + §8.4 rules + cue UI | Replaying the M3 recording at 10× produces the expected cues; unit tests for engine and each rule; one real flight flown with it. |
 | **M5** | FMC coach | INIT A/B, F-PLN, PERF TO, PERF APPR coached with OFP values (only if M2 = go). |
@@ -392,7 +394,7 @@ Order is M0 → M1 → M2 → M3 → M4, then M5/M6. M0, M1, M2 can be done on t
 ## 11. Open questions
 
 1. **FMC help emphasis**: data entry ("what goes where") or automation management ("what mode am I in, why isn't it doing what I expected")? Decides whether M5 coach or the `automation.py` corrections get more depth.
-2. **SimBridge in the daily setup**: is running SimBridge every flight acceptable? If not, M5 is out regardless of M2.
+2. **SimBridge in the daily setup**: is running SimBridge every flight acceptable? If not, M5 is out regardless of M2. **Answered: yes, every flight.**
 3. **Units**: kg throughout, or follow OFP units?
 4. **Network**: bridge on the Windows PC with the page on the Mac/tablet over LAN — confirm firewall/port 8765 is fine.
 5. **SOP baseline**: which operator's SOP do the defaults follow (landing lights at 10 000 vs FL180, packs, single-engine taxi)?
