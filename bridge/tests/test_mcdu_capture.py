@@ -42,9 +42,11 @@ async def test_records_every_frame_and_only_requests_updates(aiohttp_server: Any
     task = asyncio.create_task(capture(str(server.make_url(PATH)), out, reports.append))
     try:
         await until(
-            lambda: len(received) >= 2
-            and out.getvalue().count("\n") == len(frames)
-            and any("INIT_A  ci=25 crz_fl=350" in r for r in reports)
+            lambda: (
+                len(received) >= 2
+                and out.getvalue().count("\n") == len(frames)
+                and any("INIT_A  ci=25 crz_fl=350" in r for r in reports)
+            )
         )
     finally:
         task.cancel()
