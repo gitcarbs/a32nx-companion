@@ -153,3 +153,29 @@ def _row(raw: Any, size: Size) -> Row:
 
 def _str(value: Any) -> str:
     return value if isinstance(value, str) else ""
+
+
+class Settler:
+    """Collapses bursts of frames into one screen once the MCDU stops redrawing."""
+
+    def __init__(self, quiet_s: float = 0.15) -> None:
+        self._quiet_s = quiet_s
+        self._pending: tuple[float, McduScreen] | None = None
+        self._last: McduScreen | None = None
+
+    def push(self, t: float, screen: McduScreen) -> McduScreen | None:
+        settled = self.poll(t)
+        self._pending = (t, screen)
+        return settled
+
+    def poll(self, t: float) -> McduScreen | None:
+        if self._pending is None:
+            return None
+        since, screen = self._pending
+        if t - since < self._quiet_s:
+            return None
+        self._pending = None
+        if screen == self._last:
+            return None
+        self._last = screen
+        return screen
