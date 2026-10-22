@@ -1,6 +1,8 @@
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Literal
 
 Size = Literal["big", "small"]
@@ -179,3 +181,64 @@ class Settler:
             return None
         self._last = screen
         return screen
+
+
+class PageId(StrEnum):
+    INIT_A = "INIT_A"
+    INIT_B = "INIT_B"
+    FPLN = "FPLN"
+    PERF_TO = "PERF_TO"
+    PERF_APPR = "PERF_APPR"
+
+
+_FL = re.compile(r"FL(\d{3})")
+_ZFW = re.compile(r"(\S+)/\S+$")
+
+
+def classify(screen: McduScreen) -> PageId | None:
+    # FBW sends no page id and the titles are generic, so the label rows disambiguate.
+    title = screen.title_text
+    words = title.split()
+    labels = " | ".join(row.text for row in screen.labels)
+    if "TAKE OFF" in title:
+        return PageId.PERF_TO
+    if "APPR" in words and "QNH" in labels:
+        return PageId.PERF_APPR
+    if words[:1] == ["FROM"]:
+        return PageId.FPLN
+    if "INIT" in words:
+        if "FROM/TO" in labels:
+            return PageId.INIT_A
+        if "ZFW/ZFWCG" in labels:
+            return PageId.INIT_B
+    return None
+
+
+def init_a_fields(screen: McduScreen) -> dict[str, int | None]:
+    ci_row = screen.line_under("COST INDEX")
+    crz_row = screen.line_under("CRZ FL/TEMP")
+    ci = ci_row.text.split()[0] if ci_row and ci_row.text.split() else ""
+    fl = _FL.search(crz_row.text) if crz_row else None
+    return {"ci": int(ci) if ci.isdigit() else None, "crz_fl": int(fl.group(1)) if fl else None}
+
+
+def init_b_fields(screen: McduScreen) -> dict[str, float | None]:
+    zfw_row = screen.line_under("ZFW/ZFWCG")
+    match = _ZFW.search(zfw_row.text.rstrip()) if zfw_row else None
+    try:
+        zfw = float(match.group(1)) if match else None
+    except ValueError:
+        zfw = None
+    return {"zfw": zfw}
+
+
+def describe(screen: McduScreen) -> str:
+    page = classify(screen)
+    fields: Mapping[str, object] = {}
+    if page is PageId.INIT_A:
+        fields = init_a_fields(screen)
+    elif page is PageId.INIT_B:
+        fields = init_b_fields(screen)
+    name = page.value if page else f"?  title={screen.title_text!r}"
+    detail = " ".join(f"{key}={value}" for key, value in fields.items())
+    return f"{name}  {detail}".rstrip()
